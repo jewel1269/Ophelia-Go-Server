@@ -1,0 +1,1 @@
+কমন DTO (যেমন PaginationDto)
