@@ -22,7 +22,16 @@ export class UsersService {
   ) {}
 
   async create(registerData: CreateUserDto) {
-    const { password } = registerData;
+    const { password, email } = registerData;
+    if (!email || !password) {
+      throw new BadRequestException('Email and password are required');
+    }
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) {
+      throw new BadRequestException('Email already registered');
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await this.prisma.user.create({
       data: {
@@ -30,7 +39,37 @@ export class UsersService {
         password: hashedPassword,
       },
     });
-    return user;
+    const accessToken = this.tokenService.generateAccessToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name ?? undefined,
+      phone: user.phone ?? undefined,
+    });
+    const refreshToken = this.tokenService.generateRefreshToken({
+      sub: user.id,
+      role: user.role,
+      tokenVersion: 1,
+    });
+
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { hashedRefreshToken },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        phone: user.phone,
+        avatar: user.avatar,
+      },
+      accessToken,
+      refreshToken,
+    };
   }
 
   async login(loginData: CreateUserDto) {

@@ -27,9 +27,19 @@ export class UsersController {
 
   @Post('/register')
   @UsePipes(new ValidationPipe())
-  create(@Body() registerData: CreateUserDto) {
-    const user = this.usersService.create(registerData);
-    return user;
+  async create(
+    @Body() registerData: CreateUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { user, accessToken, refreshToken } =
+      await this.usersService.create(registerData);
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    return { user, accessToken, refreshToken };
   }
 
   @Post('/login')
