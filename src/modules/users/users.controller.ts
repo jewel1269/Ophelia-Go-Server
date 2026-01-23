@@ -102,7 +102,8 @@ export class UsersController {
 
   @Patch('/update/:id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(id, updateUserDto);
+    const updatedUser = this.usersService.update(id, updateUserDto);
+    return updatedUser;
   }
 
   @Delete('/single/:id')
@@ -120,6 +121,41 @@ export class UsersController {
     const userId = user.sub;
     console.log('User ID:', userId, addressDto);
     const address = this.usersService.createAddress(userId, addressDto);
+    return address;
+  }
+
+  @Get('/address')
+  @UseGuards(authGuard.JwtRefreshGuard)
+  address(@CurrentUser() user: authGuard.JwtPayload) {
+    const address = this.usersService.address(user.sub);
+    return address;
+  }
+
+  @Patch('/address/update/:addressId')
+  @UseGuards(authGuard.JwtRefreshGuard)
+  updateAddress(
+    @CurrentUser() user: authGuard.JwtPayload,
+    @Param('addressId') addressId: string,
+    @Body() addressDto: CreateAddressDto,
+  ) {
+    const userId = user.sub;
+    console.log('User ID:', userId, addressDto, addressId);
+    const address = this.usersService.updateAddress(
+      userId,
+      addressId,
+      addressDto,
+    );
+    return address;
+  }
+
+  @Delete('/address/delete/:addressId')
+  @UseGuards(authGuard.JwtRefreshGuard)
+  deleteAddress(
+    @CurrentUser() user: authGuard.JwtPayload,
+    @Param('addressId') addressId: string,
+  ) {
+    const userId = user.sub;
+    const address = this.usersService.deleteAddress(userId, addressId);
     return address;
   }
 }

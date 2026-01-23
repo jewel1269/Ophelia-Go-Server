@@ -2,6 +2,12 @@ import { IsString, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreateAddressDto {
   @IsString()
+  name: string;
+
+  @IsString()
+  phone: string;
+
+  @IsString()
   street: string;
 
   @IsString()
@@ -12,7 +18,7 @@ export class CreateAddressDto {
   state?: string;
 
   @IsString()
-  zipCode: string;
+  upazila: string;
 
   @IsOptional()
   @IsString()

@@ -40,3 +40,21 @@ export class CreateUserDto {
   // @Type(() => CreateAddressDto)
   // addresses?: CreateAddressDto[];
 }
+
+export class UpdateUserDtoV2 {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsPhoneNumber()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  avatar?: string;
+
+  @IsOptional()
+  @IsString()
+  gender?: string;
+}

@@ -166,6 +166,9 @@ export class UsersService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
+        include: {
+          addresses: true,
+        },
       }),
       this.prisma.user.count({ where }),
     ]);
@@ -244,6 +247,65 @@ export class UsersService {
         ...addressDto,
         userId,
       },
+    });
+    return address;
+  }
+
+  async address(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        addresses: true,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const formattedAddresses = user.addresses.map((addr) => ({
+      addressId: addr.id,
+      userName: user.name,
+      userPhone: user.phone,
+      name: addr.name,
+      phone: addr.phone,
+      street: addr.street,
+      city: addr.city,
+      state: addr.state,
+      upazila: addr.upazila,
+      country: addr.country,
+      addressType: addr.isDefault,
+      label: addr.label,
+    }));
+
+    return formattedAddresses;
+  }
+
+  async updateAddress(
+    userId: string,
+    addressId: string,
+    addressDto: CreateAddressDto,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const address = await this.prisma.address.update({
+      where: { id: addressId },
+      data: addressDto,
+    });
+    return address;
+  }
+
+  async deleteAddress(userId: string, addressId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const address = await this.prisma.address.delete({
+      where: { id: addressId },
     });
     return address;
   }

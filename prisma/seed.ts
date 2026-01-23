@@ -71,6 +71,8 @@ async function main() {
       categoryId: gadgetCategory.id,
       brandId: appleBrand.id,
       isFeatured: true,
+      orderCount: 0,
+      rating: 0,
       tags: ['smartwatch', 'gadget', 'watch'],
 
       variants: {
