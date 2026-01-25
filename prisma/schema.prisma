@@ -64,6 +64,7 @@ model User {
   name               String?
   phone              String?
   role               Role    @default(CUSTOMER)
+  gender             String?
   avatar             String?
   isEmailVerified    Boolean @default(false)
   hashedRefreshToken String?
@@ -128,27 +129,27 @@ model Brand {
 }
 
 model Product {
-  id                   String                       @id @default(uuid())
-  name                 String
-  slug                 String                       @unique
-  description          String
-  shortDesc            String?
-  price                Float
-  discountPrice        Float?
-  stock                Int                          @default(0)
-  sku                  String                       @unique
-  images               String[]
-  thumbnail            String?
-  categoryId           String
-  category             Category                     @relation(fields: [categoryId], references: [id])
-  brandId              String?
-  brand                Brand?                       @relation(fields: [brandId], references: [id])
-  isFeatured           Boolean                      @default(false)
-  isArchived           Boolean                      @default(false)
-  tags                 String[]
-  orderCount          Int                          @default(0)
-  rating               Int                          @default(0)
-  averageRating       Float                        @default(0)
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  description   String
+  shortDesc     String?
+  price         Float
+  discountPrice Float?
+  stock         Int      @default(0)
+  sku           String   @unique
+  images        String[]
+  thumbnail     String?
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id])
+  brandId       String?
+  brand         Brand?   @relation(fields: [brandId], references: [id])
+  isFeatured    Boolean  @default(false)
+  isArchived    Boolean  @default(false)
+  tags          String[]
+  orderCount    Int      @default(0)
+  rating        Int      @default(0)
+  averageRating Float    @default(0)
   // descriptionEmbedding Unsupported("vector(1536)")?
 
   variants       ProductVariant[]

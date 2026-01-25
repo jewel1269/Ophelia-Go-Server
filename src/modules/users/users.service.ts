@@ -12,6 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { CreateAddressDto } from './dto/user-address.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CloudinaryService } from 'src/storage/cloudinary/cloudinary.service';
 
 @Injectable()
 export class UsersService {
@@ -19,6 +20,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly tokenService: TokenService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   async create(registerData: CreateUserDto) {
@@ -211,12 +213,29 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto) {
-    const user = await this.prisma.user.update({
+  async update(
+    id: string,
+    updateUserDto: UpdateUserDto,
+    file?: Express.Multer.File,
+  ) {
+    let avatarUrl = updateUserDto.avatar;
+
+    if (file) {
+      const uploadResult = await this.cloudinaryService.uploadFile(file);
+      avatarUrl = uploadResult.secure_url;
+    }
+    if (!avatarUrl) {
+      avatarUrl = updateUserDto.avatar;
+    }
+    console.log(avatarUrl);
+    const updatedUser = await this.prisma.user.update({
       where: { id },
-      data: updateUserDto,
+      data: {
+        ...updateUserDto,
+        avatar: avatarUrl,
+      },
     });
-    return user;
+    return updatedUser;
   }
 
   async profile(userId: string) {

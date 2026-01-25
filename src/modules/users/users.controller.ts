@@ -11,6 +11,8 @@ import {
   Res,
   UseGuards,
   Query,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { UsersService } from './users.service';
@@ -20,6 +22,7 @@ import * as authGuard from 'src/common/guards/auth.guard';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { GetQueryDto } from 'src/common/constants/query/query-dto';
 import { CreateAddressDto } from './dto/user-address.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('users')
 export class UsersController {
@@ -101,8 +104,13 @@ export class UsersController {
   }
 
   @Patch('/update/:id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    const updatedUser = this.usersService.update(id, updateUserDto);
+  @UseInterceptors(FileInterceptor('file'))
+  update(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const updatedUser = this.usersService.update(id, updateUserDto, file);
     return updatedUser;
   }
 
