@@ -10,6 +10,7 @@ import { FilesModule } from './modules/files/files.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BrandsModule } from './modules/brands/brands.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from './modules/auth/auth.module';
     FilesModule,
     AnalyticsModule,
     AiAssistantModule,
+    BrandsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
