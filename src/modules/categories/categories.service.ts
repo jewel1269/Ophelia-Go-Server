@@ -13,10 +13,8 @@ export class CategoriesService {
     const category = await this.prisma.category.create({
       data: createCategoryDto,
     });
-
     await setCache(`category:${category.id}`, category, 300);
     await deleteCache('categories');
-
     return category;
   }
 

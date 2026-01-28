@@ -17,6 +17,7 @@ export class BrandsService {
       where: { name: createBrandDto.name },
     });
     if (existingBrand) throw new BadRequestException('Brand already exists');
+
     const brand = await this.prisma.brand.create({ data: createBrandDto });
     await setCache(`brand:${brand.id}`, brand, 600);
     await deleteCache('brands:all');

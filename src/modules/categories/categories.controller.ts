@@ -41,7 +41,7 @@ export class CategoriesController {
     return category;
   }
 
-  @Patch(':id')
+  @Patch('/update/:id')
   update(
     @Param('id') id: string,
     @Body() updateCategoryDto: UpdateCategoryDto,
@@ -50,7 +50,7 @@ export class CategoriesController {
     return category;
   }
 
-  @Delete(':id')
+  @Delete('/delete/:id')
   remove(@Param('id') id: string) {
     const category = this.categoriesService.remove(id);
     return category;

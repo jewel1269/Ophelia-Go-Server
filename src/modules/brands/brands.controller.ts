@@ -11,7 +11,7 @@ import {
 import { BrandsService } from './brands.service';
 import { UpdateBrandDto } from './dto/update-brand.dto';
 import { CreateBrandsDto } from './dto/create-brand.dto';
-import { JwtAuthGuard, JwtRefreshGuard } from 'src/common/guards/auth.guard';
+import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
@@ -21,8 +21,11 @@ export class BrandsController {
   constructor(private readonly brandsService: BrandsService) {}
 
   @Post()
+  @UseGuards(JwtRefreshGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   create(@Body() createBrandDto: CreateBrandsDto) {
-    return this.brandsService.create(createBrandDto);
+    const result = this.brandsService.create(createBrandDto);
+    return result;
   }
 
   @Get()
@@ -39,17 +42,19 @@ export class BrandsController {
     return result;
   }
 
-  @Patch(':id')
+  @Patch('/update/:id')
   @UseGuards(JwtRefreshGuard, RolesGuard)
   @Roles(Role.ADMIN)
   update(@Param('id') id: string, @Body() updateBrandDto: UpdateBrandDto) {
-    return this.brandsService.update(id, updateBrandDto);
+    const result = this.brandsService.update(id, updateBrandDto);
+    return result;
   }
 
-  @Delete(':id')
+  @Delete('/delete/:id')
   @UseGuards(JwtRefreshGuard, RolesGuard)
   @Roles(Role.ADMIN)
   remove(@Param('id') id: string) {
-    return this.brandsService.remove(id);
+    const result = this.brandsService.remove(id);
+    return result;
   }
 }
