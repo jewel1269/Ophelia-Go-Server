@@ -11,6 +11,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BrandsModule } from './modules/brands/brands.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { BrandsModule } from './modules/brands/brands.module';
     AnalyticsModule,
     AiAssistantModule,
     BrandsModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
