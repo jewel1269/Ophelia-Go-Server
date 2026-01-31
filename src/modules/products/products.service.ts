@@ -50,6 +50,72 @@ export class ProductsService {
     return products;
   }
 
+  async allProducts({
+    page,
+    limit,
+    category,
+  }: {
+    page: number;
+    limit: number;
+    category?: string;
+  }) {
+    const skip = (page - 1) * limit;
+    const cacheKey = `products:all:${category || 'none'}:${page}`;
+    const cached = await getCache(cacheKey);
+    if (cached) return cached;
+    const whereFilter: any = {};
+    if (category && category !== 'For You') {
+      whereFilter.category = { name: category };
+    }
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where: whereFilter,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          rating: true,
+          averageRating: true,
+          discountPrice: true,
+          thumbnail: true,
+          images: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      this.prisma.product.count({ where: whereFilter }),
+    ]);
+    const formattedProducts = products.map((product) => {
+      const discount = product.discountPrice
+        ? Math.round(
+            ((product.price - product.discountPrice) / product.price) * 100,
+          )
+        : 0;
+      return {
+        ...product,
+        discountPercentage: discount,
+      };
+    });
+    const data = formattedProducts;
+    const meta = {
+      total,
+      lastPage: Math.ceil(total / limit),
+      currentPage: page,
+      hasMore: skip + products.length < total,
+    };
+    const response = {
+      data,
+      meta,
+    };
+    await setCache(cacheKey, response, 200);
+
+    return response;
+  }
+
   async findOne(id: string) {
     const cached = await getCache(`product:${id}`);
     if (cached) return cached;
@@ -59,6 +125,18 @@ export class ProductsService {
     });
     if (!product) throw new NotFoundException('Product not found');
     await setCache(`product:${id}`, product, 600);
+    return product;
+  }
+
+  async findOneBySlug(slug: string) {
+    const cached = await getCache(`product:${slug}`);
+    if (cached) return cached;
+    const product = await this.prisma.product.findUnique({
+      where: { slug },
+      include: { variants: true, category: true, brand: true, reviews: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    await setCache(`product:${slug}`, product, 600);
     return product;
   }
 
