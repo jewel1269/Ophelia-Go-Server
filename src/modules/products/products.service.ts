@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/common/database/prisma.service';
-import { CreateProductDto } from './dto/create-product.dto';
+import { CreateProductDto, ProductAttributes } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { deleteCache, getCache, setCache } from 'src/services/cache.service';
 
@@ -188,14 +192,186 @@ export class ProductsService {
   }
 
   async remove(id: string) {
+    if (!id) throw new NotFoundException('Product not found');
     const existingProduct = await this.prisma.product.findUnique({
       where: { id },
+      include: {
+        variants: true,
+        reviews: true,
+        orderItems: true,
+        cartItems: true,
+        wishlistItems: true,
+        flashSaleItems: true,
+      },
     });
+
     if (!existingProduct) throw new NotFoundException('Product not found');
-    await this.prisma.product.delete({ where: { id } });
+    if (existingProduct.orderItems.length > 0) {
+      throw new BadRequestException(
+        `Cannot delete product. ${existingProduct.orderItems.length} order(s) exist for this product.`,
+      );
+    }
+    if (existingProduct.reviews.length > 0) {
+      await this.prisma.review.updateMany({
+        where: { productId: id },
+        data: { isArchived: true },
+      });
+    }
+    await this.prisma.product.delete({
+      where: { id },
+    });
     await deleteCache(`product:${id}`);
     await deleteCache('products:all');
+
     return { message: 'Product deleted successfully' };
+  }
+
+  async filterShopProducts(query: any) {
+    const {
+      search,
+      categories,
+      brands,
+      sizes,
+      colors,
+      minPrice,
+      maxPrice,
+      sort,
+      page = 1,
+      limit = 20,
+    } = query;
+
+    const currentPage = Math.max(1, Number(page) || 1);
+    const take = Math.max(1, Math.min(100, Number(limit) || 20));
+    const skip = (currentPage - 1) * take;
+
+    const where: any = { isArchived: false };
+
+    if (search?.trim()) {
+      where.OR = [
+        { name: { contains: search.trim(), mode: 'insensitive' } },
+        { description: { contains: search.trim(), mode: 'insensitive' } },
+        { slug: { contains: search.trim(), mode: 'insensitive' } },
+      ];
+    }
+
+    const toCleanArray = (val: any): string[] => {
+      if (!val || val === 'on') return [];
+      const arr = Array.isArray(val) ? val : [val];
+      return [...new Set(arr.map((v) => v?.trim()).filter(Boolean))];
+    };
+
+    const catArr = toCleanArray(categories);
+    const brandArr = toCleanArray(brands);
+    const sizeArr = toCleanArray(sizes);
+    const colorArr = toCleanArray(colors);
+    if (catArr.length > 0) {
+      where.category = { slug: { in: catArr } };
+    }
+
+    if (brandArr.length > 0) {
+      where.brand = { slug: { in: brandArr } };
+    }
+
+    const min = minPrice !== undefined ? Number(minPrice) : undefined;
+    const max = maxPrice !== undefined ? Number(maxPrice) : undefined;
+
+    if (min !== undefined || max !== undefined) {
+      where.price = {};
+      if (min !== undefined && !isNaN(min)) where.price.gte = Math.max(0, min);
+      if (max !== undefined && !isNaN(max)) where.price.lte = Math.max(0, max);
+    }
+
+    if (sizeArr.length > 0 || colorArr.length > 0) {
+      const variantConditions: any[] = [];
+
+      if (sizeArr.length > 0) {
+        variantConditions.push({
+          OR: sizeArr.map((size) => ({
+            attributes: { path: ['size'], string_contains: size },
+          })),
+        });
+      }
+
+      if (colorArr.length > 0) {
+        variantConditions.push({
+          OR: colorArr.map((color) => ({
+            attributes: { path: ['color'], string_contains: color },
+          })),
+        });
+      }
+
+      where.variants = {
+        some:
+          variantConditions.length > 1
+            ? { AND: variantConditions }
+            : variantConditions[0],
+      };
+    }
+
+    const sortOptions: Record<string, any> = {
+      price_asc: { price: 'asc' },
+      price_desc: { price: 'desc' },
+      rating: { averageRating: 'desc' },
+      newest: { createdAt: 'desc' },
+      recommended: { averageRating: 'desc' },
+    };
+
+    const orderBy = sortOptions[sort] || { createdAt: 'desc' };
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        orderBy,
+        skip,
+        take,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          discountPrice: true,
+          thumbnail: true,
+          images: true,
+          rating: true,
+          averageRating: true,
+        },
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    const formattedData = products.map((product) => {
+      const price = product.price || 0;
+      const discountPrice = product.discountPrice || 0;
+      const discountPercentage =
+        discountPrice > 0 && price > 0
+          ? Math.round(((price - discountPrice) / price) * 100)
+          : 0;
+
+      return {
+        id: product.id,
+        name: product.name,
+        slug: product.slug,
+        price,
+        discountPrice,
+        discountPercentage,
+        thumbnail: product.thumbnail,
+        images: product.images,
+        rating: product.rating || 0,
+        averageRating: product.averageRating || 0,
+      };
+    });
+
+    const lastPage = Math.ceil(total / take);
+
+    return {
+      data: formattedData,
+      meta: {
+        total,
+        lastPage,
+        currentPage,
+        perPage: take,
+        hasMore: currentPage < lastPage,
+      },
+    };
   }
 
   async productsByCategory(slug: string) {
@@ -345,5 +521,41 @@ export class ProductsService {
 
     await setCache('products:toprated', products, 300);
     return products;
+  }
+
+  async filterProductsItems() {
+    const cached = await getCache('products:filter-sidebar-items');
+    if (cached) return cached;
+    const [categories, brands, variants] = await Promise.all([
+      this.prisma.category.findMany({
+        select: { name: true, slug: true },
+      }),
+      this.prisma.brand.findMany({
+        select: { name: true, slug: true },
+      }),
+      this.prisma.productVariant.findMany({
+        select: { attributes: true },
+      }),
+    ]);
+    const sizes = new Set<string>();
+    const colors = new Set<string>();
+
+    variants.forEach((variant) => {
+      const attr = variant.attributes as unknown as ProductAttributes;
+
+      if (attr) {
+        if (attr.size) sizes.add(attr.size);
+        if (attr.color) colors.add(attr.color);
+      }
+    });
+    const response = {
+      categories,
+      brands,
+      sizes: Array.from(sizes),
+      colors: Array.from(colors),
+    };
+
+    await setCache('products:filter-sidebar-items', response, 300);
+    return response;
   }
 }

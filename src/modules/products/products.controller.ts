@@ -29,12 +29,6 @@ export class ProductsController {
     return product;
   }
 
-  @Get()
-  async findAll() {
-    const products = await this.productsService.findAll();
-    return products;
-  }
-
   @Get('/all')
   async allProducts(
     @Query('page') page: string = '1',
@@ -49,15 +43,41 @@ export class ProductsController {
     return products;
   }
 
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    const product = await this.productsService.findOne(id);
+  @Delete('/delete/:id')
+  @UseGuards(JwtRefreshGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async remove(@Param('id') id: string) {
+    const product = await this.productsService.remove(id);
     return product;
+  }
+
+  @Get('/filterOptions')
+  async filterProductsItems() {
+    const filterOptions = await this.productsService.filterProductsItems();
+    return filterOptions;
   }
 
   @Get('/details/:slug')
   async findOneBySlug(@Param('slug') slug: string) {
     const product = await this.productsService.findOneBySlug(slug);
+    return product;
+  }
+
+  @Get('/shop')
+  async productsByCategory(@Query() query: any) {
+    const products = await this.productsService.filterShopProducts(query);
+    return products;
+  }
+
+  @Get()
+  async findAll() {
+    const products = await this.productsService.findAll();
+    return products;
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    const product = await this.productsService.findOne(id);
     return product;
   }
 
@@ -69,14 +89,6 @@ export class ProductsController {
     @Body() updateProductDto: UpdateProductDto,
   ) {
     const product = await this.productsService.update(id, updateProductDto);
-    return product;
-  }
-
-  @Delete(':id')
-  @UseGuards(JwtRefreshGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  async remove(@Param('id') id: string) {
-    const product = await this.productsService.remove(id);
     return product;
   }
 }

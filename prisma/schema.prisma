@@ -325,6 +325,7 @@ model Review {
   userId     String
   user       User     @relation(fields: [userId], references: [id])
   productId  String
+  isArchived Boolean  @default(false)
   product    Product  @relation(fields: [productId], references: [id])
   isApproved Boolean  @default(false)
   createdAt  DateTime @default(now())

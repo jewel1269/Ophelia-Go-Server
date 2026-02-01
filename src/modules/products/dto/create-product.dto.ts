@@ -79,3 +79,9 @@ export class CreateProductDto {
   @IsOptional()
   variants?: CreateProductVariantDto[];
 }
+
+export interface ProductAttributes {
+  size?: string;
+  color?: string;
+  [key: string]: any;
+}

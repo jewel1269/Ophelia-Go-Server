@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -25,9 +29,27 @@ export class CategoriesService {
     const categories = await this.prisma.category.findMany({
       where: { parentId: null },
       include: {
+        _count: {
+          select: {
+            products: true,
+          },
+        },
         children: {
           include: {
-            children: true,
+            _count: {
+              select: {
+                products: true,
+              },
+            },
+            children: {
+              include: {
+                _count: {
+                  select: {
+                    products: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -69,15 +91,28 @@ export class CategoriesService {
   }
 
   async remove(id: string) {
-    if (!id) throw new NotFoundException('Category not found');
-
+    if (!id) {
+      throw new NotFoundException('Category not found');
+    }
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+    });
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+    const productCount = await this.prisma.product.count({
+      where: { categoryId: id },
+    });
+    if (productCount > 0) {
+      throw new BadRequestException(
+        `Cannot delete category. ${productCount} product(s) are still assigned to this category.`,
+      );
+    }
     const result = await this.prisma.category.delete({
       where: { id },
     });
-
     await deleteCache(`category:${id}`);
     await deleteCache('categories');
-
     return result;
   }
 
