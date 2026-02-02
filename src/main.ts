@@ -44,10 +44,8 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-    .setTitle('Programming Fighter API')
-    .setDescription(
-      'The official API documentation for Programming Fighter LMS',
-    )
+    .setTitle('Ophelia API')
+    .setDescription('The official API documentation for Ophelia')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
