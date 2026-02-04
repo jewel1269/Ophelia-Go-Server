@@ -12,6 +12,7 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BrandsModule } from './modules/brands/brands.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { CartModule } from './modules/cart/cart.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
     AiAssistantModule,
     BrandsModule,
     InventoryModule,
+    CartModule,
   ],
   controllers: [AppController],
   providers: [AppService],
