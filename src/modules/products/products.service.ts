@@ -86,6 +86,16 @@ export class ProductsService {
           discountPrice: true,
           thumbnail: true,
           images: true,
+          variants: {
+            select: {
+              id: true,
+              sku: true,
+              price: true,
+              stock: true,
+              attributes: true,
+              name: true,
+            },
+          },
         },
         orderBy: {
           createdAt: 'desc',
