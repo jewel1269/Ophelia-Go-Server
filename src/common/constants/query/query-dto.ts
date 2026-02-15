@@ -17,4 +17,16 @@ export class GetQueryDto {
   @IsInt()
   @Min(1)
   limit: number = 15;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsString()
+  order?: string;
 }

@@ -55,4 +55,10 @@ export class CategoriesController {
     const category = this.categoriesService.remove(id);
     return category;
   }
+
+  @Get('/products/:slug')
+  categoriesWithProducts(@Param('slug') slug: string) {
+    const categories = this.categoriesService.categoriesWithProducts(slug);
+    return categories;
+  }
 }

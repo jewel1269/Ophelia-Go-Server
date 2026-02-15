@@ -117,19 +117,51 @@ export class CategoriesService {
   }
 
   async categoriesWithProducts(slug: string) {
+    console.log(slug);
     if (!slug) throw new NotFoundException('Slug is missing');
     const cached = await getCache(`cat-products:${slug}`);
     if (cached) return cached;
+    const productSelect = {
+      id: true,
+      name: true,
+      slug: true,
+      price: true,
+      rating: true,
+      averageRating: true,
+      discountPrice: true,
+      thumbnail: true,
+      images: true,
+      variants: {
+        select: {
+          id: true,
+          sku: true,
+          price: true,
+          stock: true,
+          attributes: true,
+          name: true,
+        },
+      },
+    };
     const category = await this.prisma.category.findFirst({
       where: { slug },
       include: {
         children: {
           include: {
             children: true,
-            products: true,
+            products: {
+              select: productSelect,
+              orderBy: {
+                createdAt: 'desc',
+              },
+            },
           },
         },
-        products: true,
+        products: {
+          select: productSelect,
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
       },
     });
     if (!category) throw new NotFoundException('Category not found');

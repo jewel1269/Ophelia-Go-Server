@@ -23,6 +23,8 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { GetQueryDto } from 'src/common/constants/query/query-dto';
 import { CreateAddressDto } from './dto/user-address.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @Controller('users')
 export class UsersController {
@@ -81,14 +83,25 @@ export class UsersController {
   }
 
   @Get('/customers')
+  @UseGuards(authGuard.JwtRefreshGuard)
+  @Roles(Role.ADMIN)
   async findAll(@Query() query: GetQueryDto) {
-    console.log('Query received:', query);
     const users = await this.usersService.findAll({
       search: query.search,
       page: query.page,
       limit: query.limit,
+      sortBy: query.sortBy,
+      order: query.order,
+      status: query.status,
     });
     return users;
+  }
+
+  @Patch('/password')
+  @UseGuards(authGuard.JwtRefreshGuard)
+  updatePassword(@CurrentUser() user: authGuard.JwtPayload, @Body() body: any) {
+    const updatedPassword = this.usersService.updatePassword(user.sub, body);
+    return updatedPassword;
   }
 
   @Get('/single/:id')

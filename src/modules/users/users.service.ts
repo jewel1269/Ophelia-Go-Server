@@ -134,40 +134,41 @@ export class UsersService {
 
   async findAll({
     search,
-    page,
-    limit,
+    page = 1,
+    limit = 10,
+    sortBy = 'createdAt',
+    order = 'desc',
+    status,
   }: {
     search?: string;
-    page: number;
-    limit: number;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    order?: string;
+    status?: string;
   }) {
-    const skip = (page - 1) * limit;
+    const skip = (Number(page) - 1) * Number(limit);
+    const take = Number(limit);
+    const where: Prisma.UserWhereInput = {};
 
-    const where: Prisma.UserWhereInput = search
-      ? {
-          OR: [
-            {
-              name: {
-                contains: search,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-            {
-              email: {
-                contains: search,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-          ],
-        }
-      : {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: Prisma.QueryMode.insensitive } },
+        { email: { contains: search, mode: Prisma.QueryMode.insensitive } },
+      ];
+    }
 
+    if (status && status !== 'all') {
+      where.status = status;
+    }
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
         skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
+        take,
+        orderBy: {
+          [sortBy]: order.toLowerCase() as Prisma.SortOrder,
+        },
         include: {
           addresses: true,
         },
@@ -179,9 +180,9 @@ export class UsersService {
       data: users,
       meta: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: Number(page),
+        limit: take,
+        totalPages: Math.ceil(total / take),
       },
     };
   }
@@ -327,5 +328,24 @@ export class UsersService {
       where: { id: addressId },
     });
     return address;
+  }
+
+  async updatePassword(userId: string, body: any) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    console.log(user);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const passwordMatch = await bcrypt.compare(body.oldPassword, user.password);
+    if (!passwordMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const updatedPassword = await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: body.newPassword },
+    });
+    return updatedPassword;
   }
 }
