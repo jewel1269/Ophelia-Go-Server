@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AiAssistantService } from './ai-assistant.service';
 import { AiAssistantController } from './ai-assistant.controller';
+import { PrismaModule } from 'src/common/database/prisma.module';
 
 @Module({
+  imports: [PrismaModule],
   controllers: [AiAssistantController],
   providers: [AiAssistantService],
 })
