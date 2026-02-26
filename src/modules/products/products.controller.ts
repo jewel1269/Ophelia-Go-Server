@@ -16,6 +16,7 @@ import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { ProductQueryDto } from './dto/product-query.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -70,10 +71,11 @@ export class ProductsController {
   }
 
   @Get()
-  async findAll() {
-    const products = await this.productsService.findAll();
-    return products;
-  }
+ async findAll(@Query() query: ProductQueryDto) {
+  console.log('Filters received:', query); 
+  const products = await this.productsService.findAll(query);
+  return products;
+}
 
   @Get(':id')
   async findOne(@Param('id') id: string) {

@@ -40,18 +40,76 @@ export class ProductsService {
     return product;
   }
 
-  async findAll() {
-    const cached = await getCache('products:all');
-    if (cached) return cached;
-    const products = await this.prisma.product.findMany({
-      include: {
-        variants: true,
-        brand: { select: { name: true } },
-        category: { select: { name: true } },
+  async findAll(query?: any) {
+    const hasFilters = query && Object.keys(query).length > 0 && 
+                       Object.values(query).some(val => val !== undefined && val !== '');
+  
+
+    if (!hasFilters) {
+      const cached = await getCache('products:all');
+      if (cached) return cached;
+    }
+    const { search, category, brand, status, stockLevel } = query || {};
+    let where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (status && !status.includes('All')) {
+      if (status === 'Active') {
+        where.isFeatured = true;
+        where.isArchived = false;
+      } else if (status === 'Inactive') {
+        where.isArchived = true;
+      }
+    }
+
+    if (category && !category.includes('All')) {
+      where.category = { name: category };
+    }
+    if (brand && !brand.includes('All')) {
+      where.brand = { name: brand };
+    }
+  
+    if (stockLevel && !stockLevel.includes('All')) {
+      if (stockLevel === 'Low Stock') where.stock = { lte: 10, gt: 0 };
+      if (stockLevel === 'Empty' || stockLevel === 'Out of Stock') where.stock = 0;
+      if (stockLevel === 'In Stock') where.stock = { gt: 10 };
+    }
+  
+    const [products, totalCount, activeCount, lowStockCount, outOfStockCount] = await Promise.all([
+      this.prisma.product.findMany({
+        where: Object.keys(where).length > 0 ? where : undefined,
+        include: {
+          variants: true,
+          brand: { select: { name: true } },
+          category: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.product.count(), 
+      this.prisma.product.count({ where: { isFeatured: true, isArchived: false } }), 
+      this.prisma.product.count({ where: { stock: { lte: 10, gt: 0 } } }), 
+      this.prisma.product.count({ where: { stock: 0 } }), 
+    ]);
+  
+    const result = {
+      products,
+      stats: {
+        total: totalCount,
+        active: activeCount,
+        lowStock: lowStockCount,
+        outOfStock: outOfStockCount,
       },
-    });
-    await setCache('products:all', products, 300);
-    return products;
+    };
+
+    if (!hasFilters) {
+      await setCache('products:all', result, 300);
+    }
+  
+    return result;
   }
 
   async allProducts({
