@@ -335,15 +335,17 @@ model Review {
 }
 
 model Banner {
-  id        String   @id @default(uuid())
-  title     String
-  image     String
-  link      String?
-  isActive  Boolean  @default(true)
-  position  Int      @default(0)
-  type      String   @default("HERO")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(uuid())
+  title            String
+  images           String[]
+  announcement     String?
+  shortDescription String?
+  link             String?
+  isActive         Boolean  @default(true)
+  position         Int      @default(0)
+  type             String   @default("HERO")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@map("banners")
 }
