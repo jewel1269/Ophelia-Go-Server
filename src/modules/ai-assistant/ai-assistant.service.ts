@@ -163,4 +163,34 @@ export class AiAssistantService {
       );
     }
   }
+
+  async getProductTitle(file: Express.Multer.File): Promise<string> {
+    try {
+      const model = this.genAI.getGenerativeModel({
+        model: 'models/gemini-3-flash-preview',
+      });
+
+      const imagePart = {
+        inlineData: {
+          data: file.buffer.toString('base64'),
+          mimeType: file.mimetype,
+        },
+      };
+
+      const prompt = `Look at this product image and return ONLY a short 2-5 word product search title.
+Rules:
+- No punctuation, no explanation, no extra text
+- Just the product name/title suitable for an e-commerce search
+- Example outputs: "red-floral-maxi-dress", "gold-hoop-earrings", "leather-tote-bag"
+Output only the title:`;
+
+      const result = await model.generateContent([prompt, imagePart]);
+      const text = result.response.text().trim();
+      return text.replace(/^["']|["']$/g, '').trim();
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to analyze image: ' + error.message,
+      );
+    }
+  }
 }
