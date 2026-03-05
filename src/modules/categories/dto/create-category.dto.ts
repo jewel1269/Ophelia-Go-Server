@@ -12,6 +12,10 @@ export class CreateCategoryDto {
   image?: string;
 
   @IsOptional()
+  @IsUrl()
+  backgroundImage?: string;
+
+  @IsOptional()
   @IsUUID()
   parentId?: string;
 }

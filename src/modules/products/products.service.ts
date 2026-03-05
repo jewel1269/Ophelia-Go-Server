@@ -41,9 +41,10 @@ export class ProductsService {
   }
 
   async findAll(query?: any) {
-    const hasFilters = query && Object.keys(query).length > 0 && 
-                       Object.values(query).some(val => val !== undefined && val !== '');
-  
+    const hasFilters =
+      query &&
+      Object.keys(query).length > 0 &&
+      Object.values(query).some((val) => val !== undefined && val !== '');
 
     if (!hasFilters) {
       const cached = await getCache('products:all');
@@ -72,29 +73,33 @@ export class ProductsService {
     if (brand && !brand.includes('All')) {
       where.brand = { name: brand };
     }
-  
+
     if (stockLevel && !stockLevel.includes('All')) {
       if (stockLevel === 'Low Stock') where.stock = { lte: 10, gt: 0 };
-      if (stockLevel === 'Empty' || stockLevel === 'Out of Stock') where.stock = 0;
+      if (stockLevel === 'Empty' || stockLevel === 'Out of Stock')
+        where.stock = 0;
       if (stockLevel === 'In Stock') where.stock = { gt: 10 };
     }
-  
-    const [products, totalCount, activeCount, lowStockCount, outOfStockCount] = await Promise.all([
-      this.prisma.product.findMany({
-        where: Object.keys(where).length > 0 ? where : undefined,
-        include: {
-          variants: true,
-          brand: { select: { name: true } },
-          category: { select: { name: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.product.count(), 
-      this.prisma.product.count({ where: { isFeatured: true, isArchived: false } }), 
-      this.prisma.product.count({ where: { stock: { lte: 10, gt: 0 } } }), 
-      this.prisma.product.count({ where: { stock: 0 } }), 
-    ]);
-  
+
+    const [products, totalCount, activeCount, lowStockCount, outOfStockCount] =
+      await Promise.all([
+        this.prisma.product.findMany({
+          where: Object.keys(where).length > 0 ? where : undefined,
+          include: {
+            variants: true,
+            brand: { select: { name: true } },
+            category: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.product.count(),
+        this.prisma.product.count({
+          where: { isFeatured: true, isArchived: false },
+        }),
+        this.prisma.product.count({ where: { stock: { lte: 10, gt: 0 } } }),
+        this.prisma.product.count({ where: { stock: 0 } }),
+      ]);
+
     const result = {
       products,
       stats: {
@@ -108,27 +113,23 @@ export class ProductsService {
     if (!hasFilters) {
       await setCache('products:all', result, 300);
     }
-  
+
     return result;
   }
 
   async allProducts({
     page,
     limit,
-    category,
   }: {
     page: number;
     limit: number;
     category?: string;
   }) {
     const skip = (page - 1) * limit;
-    const cacheKey = `products:all:${category || 'none'}:${page}`;
+    const cacheKey = `products:all:${page}`;
     const cached = await getCache(cacheKey);
     if (cached) return cached;
     const whereFilter: any = {};
-    if (category && category !== 'For You') {
-      whereFilter.category = { name: category };
-    }
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
         where: whereFilter,
@@ -297,10 +298,10 @@ export class ProductsService {
   async filterShopProducts(query: any) {
     const {
       search,
-      categories,
-      brands,
-      sizes,
-      colors,
+      'categories[]': categories,
+      'brands[]': brands,
+      'sizes[]': sizes,
+      'colors[]': colors,
       minPrice,
       maxPrice,
       sort,
@@ -314,6 +315,7 @@ export class ProductsService {
 
     const where: any = { isArchived: false };
 
+    // 1. Search Logic
     if (search?.trim()) {
       where.OR = [
         { name: { contains: search.trim(), mode: 'insensitive' } },
@@ -322,10 +324,11 @@ export class ProductsService {
       ];
     }
 
+    // 2. Array Cleanup Helper
     const toCleanArray = (val: any): string[] => {
-      if (!val || val === 'on') return [];
+      if (!val) return [];
       const arr = Array.isArray(val) ? val : [val];
-      return [...new Set(arr.map((v) => v?.trim()).filter(Boolean))];
+      return [...new Set(arr.map((v) => String(v).trim()).filter(Boolean))];
     };
 
     const catArr = toCleanArray(categories);
@@ -340,22 +343,30 @@ export class ProductsService {
       where.brand = { slug: { in: brandArr } };
     }
 
+    // 4. Price Filtering
     const min = minPrice !== undefined ? Number(minPrice) : undefined;
     const max = maxPrice !== undefined ? Number(maxPrice) : undefined;
 
     if (min !== undefined || max !== undefined) {
-      where.price = {};
-      if (min !== undefined && !isNaN(min)) where.price.gte = Math.max(0, min);
-      if (max !== undefined && !isNaN(max)) where.price.lte = Math.max(0, max);
+      where.discountPrice = {};
+      if (min !== undefined && !isNaN(min))
+        where.discountPrice.gte = Math.max(0, min);
+      if (max !== undefined && !isNaN(max))
+        where.discountPrice.lte = Math.max(0, max);
     }
 
+    // 5. Variant Filtering (Size & Color)
+    // We use array_contains because your data structure is: attributes: { size: ["1", "2"] }
     if (sizeArr.length > 0 || colorArr.length > 0) {
       const variantConditions: any[] = [];
 
       if (sizeArr.length > 0) {
         variantConditions.push({
           OR: sizeArr.map((size) => ({
-            attributes: { path: ['size'], string_contains: size },
+            attributes: {
+              path: ['size'],
+              array_contains: size, // Changed from string_contains to array_contains
+            },
           })),
         });
       }
@@ -363,7 +374,10 @@ export class ProductsService {
       if (colorArr.length > 0) {
         variantConditions.push({
           OR: colorArr.map((color) => ({
-            attributes: { path: ['color'], string_contains: color },
+            attributes: {
+              path: ['color'],
+              array_contains: color, // Changed from string_contains to array_contains
+            },
           })),
         });
       }
@@ -376,15 +390,17 @@ export class ProductsService {
       };
     }
 
+    // 6. Sorting & Database Query
     const sortOptions: Record<string, any> = {
-      price_asc: { price: 'asc' },
-      price_desc: { price: 'desc' },
+      price_asc: { discountPrice: 'asc' }, // Sort by discountPrice as that's the active price
+      price_desc: { discountPrice: 'desc' },
       rating: { averageRating: 'desc' },
       newest: { createdAt: 'desc' },
       recommended: { averageRating: 'desc' },
     };
 
     const orderBy = sortOptions[sort] || { createdAt: 'desc' };
+
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
@@ -406,23 +422,20 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
+    // 7. Data Formatting
     const formattedData = products.map((product) => {
       const price = product.price || 0;
       const discountPrice = product.discountPrice || 0;
       const discountPercentage =
-        discountPrice > 0 && price > 0
+        discountPrice > 0 && price > discountPrice
           ? Math.round(((price - discountPrice) / price) * 100)
           : 0;
 
       return {
-        id: product.id,
-        name: product.name,
-        slug: product.slug,
+        ...product,
         price,
         discountPrice,
         discountPercentage,
-        thumbnail: product.thumbnail,
-        images: product.images,
         rating: product.rating || 0,
         averageRating: product.averageRating || 0,
       };

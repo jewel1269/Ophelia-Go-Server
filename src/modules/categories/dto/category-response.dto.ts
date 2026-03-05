@@ -16,6 +16,10 @@ export class CategoryResponseDto {
   image?: string;
 
   @IsOptional()
+  @IsUrl()
+  backgroundImage?: string;
+
+  @IsOptional()
   @IsUUID()
   parentId?: string;
 

@@ -34,12 +34,10 @@ export class ProductsController {
   async allProducts(
     @Query('page') page: string = '1',
     @Query('limit') limit: string = '10',
-    @Query('category') category?: string,
   ) {
     const products = await this.productsService.allProducts({
       page: Number(page),
       limit: Number(limit),
-      category,
     });
     return products;
   }
@@ -71,11 +69,11 @@ export class ProductsController {
   }
 
   @Get()
- async findAll(@Query() query: ProductQueryDto) {
-  console.log('Filters received:', query); 
-  const products = await this.productsService.findAll(query);
-  return products;
-}
+  async findAll(@Query() query: ProductQueryDto) {
+    console.log('Filters received:', query);
+    const products = await this.productsService.findAll(query);
+    return products;
+  }
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
