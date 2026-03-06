@@ -27,7 +27,8 @@ async function bootstrap() {
     origin: [
       'https://ophelia.vercel.app',
       'http://localhost:3000',
-      'http://localhost:5173',
+      'https://opheliago.com',
+      'www.opheliago.com',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
