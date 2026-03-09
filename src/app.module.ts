@@ -14,6 +14,7 @@ import { BrandsModule } from './modules/brands/brands.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { CartModule } from './modules/cart/cart.module';
 import { BannerModule } from './modules/banner/banner.module';
+import { ReviewModule } from './modules/review/review.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { BannerModule } from './modules/banner/banner.module';
     InventoryModule,
     CartModule,
     BannerModule,
+    ReviewModule,
   ],
   controllers: [AppController],
   providers: [AppService],
