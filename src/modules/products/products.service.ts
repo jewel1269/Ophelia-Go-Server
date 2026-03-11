@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/common/database/prisma.service';
@@ -14,30 +15,39 @@ export class ProductsService {
 
   async create(createProductDto: CreateProductDto) {
     const { variants, ...productData } = createProductDto;
-    const product = await this.prisma.product.create({
-      data: {
-        ...productData,
-        variants: variants?.length
-          ? {
-              create: variants.map((v) => ({
-                name: v.name,
-                sku: v.sku,
-                price: v.price,
-                stock: v.stock,
-                attributes: v.attributes ?? {},
-              })),
-            }
-          : undefined,
-      },
-      include: {
-        variants: true,
-        category: true,
-        brand: true,
-      },
-    });
-    await setCache(`product:${product.id}`, product, 600);
-    await deleteCache('products:all');
-    return product;
+    try {
+      const product = await this.prisma.product.create({
+        data: {
+          ...productData,
+          variants:
+            variants && variants.length > 0
+              ? {
+                  create: variants.map((v) => ({
+                    name: v.name,
+                    sku: v.sku,
+                    price: v.price ?? productData.price,
+                    stock: v.stock ?? 0,
+                    attributes: v.attributes || {},
+                  })),
+                }
+              : undefined,
+        },
+        include: {
+          variants: true,
+          category: true,
+          brand: true,
+        },
+      });
+
+      await setCache(`product:${product.id}`, product, 600);
+      await deleteCache('products:all');
+      return product;
+    } catch (error) {
+      console.error('Product Creation Error:', error);
+      throw new InternalServerErrorException(
+        error.message || 'Failed to create product',
+      );
+    }
   }
 
   async findAll(query?: any) {

@@ -1,4 +1,3 @@
-// create-product-variant.dto.ts
 import {
   IsString,
   IsOptional,
@@ -23,9 +22,13 @@ export class CreateProductVariantDto {
 
   @IsInt()
   @IsOptional()
-  stock?: number = 0;
+  stock: number = 0;
 
   @IsObject()
-  @IsOptional()
-  attributes?: Record<string, any> | null = null;
+  @IsNotEmpty()
+  attributes: {
+    color?: string;
+    size?: string;
+    [key: string]: any;
+  };
 }

@@ -1,16 +1,36 @@
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
-export class CreateCartDto {
-  @IsString()
-  @IsNotEmpty()
-  userId: string;
+class CartItemDto {
   @IsString()
   @IsNotEmpty()
   productId: string;
+
   @IsString()
-  @IsNotEmpty()
-  variantId: string;
-  @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
+  variantId?: string | null;
+
+  @IsInt()
+  @Min(1, { message: 'Quantity must be at least 1' })
   quantity: number;
+}
+
+export class CreateCartWithItemsDto {
+  @IsString()
+  @IsOptional()
+  userId?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CartItemDto)
+  @IsNotEmpty()
+  items: CartItemDto[];
 }

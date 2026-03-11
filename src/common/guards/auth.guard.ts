@@ -25,7 +25,6 @@ export class JwtAuthGuard implements CanActivate {
     const token = this.extractAccessToken(request);
 
     if (!token) throw new UnauthorizedException('Access token not found');
-
     try {
       const payload = this.jwtService.verify<JwtPayload>(token, {
         secret: process.env.JWT_ACCESS_SECRET as string,

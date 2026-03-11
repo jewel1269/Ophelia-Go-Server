@@ -21,6 +21,14 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 export class ReviewController {
   constructor(private readonly reviewService: ReviewService) {}
 
+  @Get('/all')
+  @UseGuards(JwtRefreshGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  allReviews() {
+    const reviews = this.reviewService.allReviews();
+    return reviews;
+  }
+
   @Get(':id')
   findAll(@Param('id') productId: string) {
     const reviews = this.reviewService.findAll(productId);
@@ -41,16 +49,12 @@ export class ReviewController {
   }
 
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Param('productId') productId: string,
-    @Body() updateReviewDto: UpdateReviewDto,
-  ) {
-    return this.reviewService.update(id, productId, updateReviewDto);
+  update(@Param('id') id: string, @Body() updateReviewDto: UpdateReviewDto) {
+    return this.reviewService.update(id, updateReviewDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string, @Param('productId') productId: string) {
-    return this.reviewService.remove(id, productId);
+  @Delete('/delete/:id')
+  remove(@Param('id') id: string) {
+    return this.reviewService.remove(id);
   }
 }
