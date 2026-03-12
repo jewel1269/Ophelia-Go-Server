@@ -3,16 +3,19 @@ import {
   IsEnum,
   IsNotEmpty,
   IsNumber,
-  IsObject,
   IsOptional,
   IsString,
   IsUUID,
   ValidateNested,
   Min,
+  IsUrl,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { OrderStatus } from '@prisma/client';
-import { CreatePaymentDto } from 'src/modules/payments/dto/create-payment.dto';
+
+export enum PaymentType {
+  COD = 'COD',
+  ONLINE = 'ONLINE',
+}
 
 export class CreateOrderItemDto {
   @IsUUID()
@@ -23,63 +26,54 @@ export class CreateOrderItemDto {
   @IsOptional()
   variantId?: string;
 
-  @IsNumber()
-  @Min(1)
-  quantity: number;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
 
   @IsNumber()
   @Min(0)
   price: number;
-}
 
-export class CreateOrderDto {
-  @IsUUID()
-  @IsNotEmpty()
-  userId: string;
+  @IsNumber()
+  @Min(1)
+  quantity: number;
+
+  @IsUrl()
+  @IsOptional()
+  image?: string;
 
   @IsString()
   @IsOptional()
-  orderNumber: string;
+  slug?: string;
 
-  @IsEnum(OrderStatus)
+  @IsNumber()
   @IsOptional()
-  status?: OrderStatus;
+  discountPrice?: number;
 
   @IsNumber()
-  @Min(0)
-  subTotal: number;
-
-  @IsNumber()
-  @Min(0)
-  shippingCost: number;
-
-  @IsNumber()
-  @Min(0)
   @IsOptional()
-  discountAmount?: number = 0;
+  originalPrice?: number;
+}
+
+export class CreateOrderDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateOrderItemDto)
+  items: CreateOrderItemDto[];
 
   @IsNumber()
   @Min(0)
   totalAmount: number;
 
-  @IsObject()
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  shippingCost: number;
+
+  @IsEnum(PaymentType)
+  paymentType: PaymentType;
+
+  @IsUUID()
   @IsNotEmpty()
-  shippingAddress: Record<string, any>;
-
-  @IsObject()
-  @IsOptional()
-  billingAddress?: Record<string, any>;
-
-  @IsString()
-  @IsOptional()
-  couponId?: string;
-
-  @Type(() => CreatePaymentDto)
-  @ValidateNested()
-  payment: CreatePaymentDto;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateOrderItemDto)
-  orderItems: CreateOrderItemDto[];
+  addressId: string;
 }

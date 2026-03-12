@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -16,6 +17,8 @@ import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { BuyNowDto } from './dto/buy-now-dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -23,33 +26,25 @@ export class OrdersController {
 
   @Post()
   @UseGuards(JwtRefreshGuard)
-  create(@Body() createOrderDto: CreateOrderDto) {
-    const order = this.ordersService.create(createOrderDto);
+  create(@CurrentUser() user: any, @Body() dto: CreateOrderDto) {
+    const order = this.ordersService.createOrderFromCart(user.sub, dto);
     return order;
   }
 
-  @Get()
+  @Post('buy-now')
+  @UseGuards(JwtRefreshGuard)
+  buyNow(@CurrentUser() user: any, @Body() dto: BuyNowDto) {
+    return this.ordersService.buyNow(user.sub, dto);
+  }
+
+  @Get('/my-orders')
   @UseGuards(JwtRefreshGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  findAll(@Query() query: any) {
-    const orders = this.ordersService.findAll(query);
-    return orders;
-  }
-
-  @Get('/details/:id')
-  findOne(@Param('id') id: string) {
-    console.log(id);
-    const order = this.ordersService.findOne(id);
-    return order;
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
-    return this.ordersService.update(id, updateOrderDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.ordersService.remove(id);
+  @Roles(Role.CUSTOMER)
+  async myOrder(@CurrentUser() user: any) {
+    const userId = user?.sub || user?.id;
+    if (!userId) {
+      throw new BadRequestException('User ID not found in request');
+    }
+    return await this.ordersService.find(userId);
   }
 }
