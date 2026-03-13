@@ -232,48 +232,110 @@ export class OrdersService {
     await deleteCache(`orders:user:${userId}`);
   }
 
-  async find(userId: string) {
-    const cacheKey = `orders:user:${userId}`;
+  async find(userId: string, status?: string) {
+    console.log(userId, status);
+    const cacheKey = `orders:user:${userId}:${status || 'ALL'}`;
     const cachedOrders = await getCache(cacheKey);
     if (cachedOrders) return cachedOrders;
+    const whereCondition: any = { userId };
+    if (status && status !== 'ALL') {
+      whereCondition.status = status;
+    }
     const orders = await this.prisma.order.findMany({
-      where: {
-        userId: userId,
-      },
-      include: {
-        payment: {
-          select: {
-            method: true,
-            status: true,
-            transactionId: true,
-          },
-        },
+      where: whereCondition,
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        totalAmount: true,
+        createdAt: true,
+        payment: { select: { method: true } },
         orderItems: {
-          include: {
-            product: {
-              select: {
-                name: true,
-                thumbnail: true,
-                slug: true,
-              },
-            },
+          select: {
+            id: true,
+            price: true,
+            quantity: true,
+            product: { select: { name: true, thumbnail: true } },
             variant: {
               select: {
-                name: true,
+                attributes: true,
               },
             },
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
+      orderBy: { createdAt: 'desc' },
+    });
+    const result = orders || [];
+    await setCache(cacheKey, result, 200);
+    return result;
+  }
+
+  async findOneByOrderId(orderNumber: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { orderNumber: orderNumber },
+      include: { orderItems: { include: { variant: true } } },
+    });
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderNumber} not found`);
+    }
+    return order;
+  }
+
+  async getAllOrders(queryParams: any) {
+    const { page = 1, limit = 10, search, status, paymentStatus } = queryParams;
+    const skip = (Number(page) - 1) * Number(limit);
+    const where: any = {};
+    if (search) {
+      where.orderNumber = { contains: search, mode: 'insensitive' };
+    }
+    if (status) {
+      where.status = status;
+    }
+    if (paymentStatus) {
+      where.paymentStatus = paymentStatus;
+    }
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              name: true,
+              phone: true,
+            },
+          },
+          payment: {
+            select: {
+              method: true,
+              status: true,
+            },
+          },
+        },
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return {
+      data: orders,
+      meta: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        lastPage: Math.ceil(total / Number(limit)),
+      },
+    };
+  }
+
+  async getOrderById(id: string) {
+    return await this.prisma.order.findUnique({
+      where: { id },
+      include: {
+        orderItems: { include: { variant: true } },
       },
     });
-    if (!orders) {
-      return [];
-    }
-    await setCache(cacheKey, orders, 300);
-
-    return orders;
   }
 }
