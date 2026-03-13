@@ -36,31 +36,33 @@ export class OrdersController {
     return orders;
   }
 
-  @Get(':id')
-  async getOrderById(@Param('id') id: string) {
-    return await this.ordersService.getOrderById(id);
-  }
-
   @Post('buy-now')
   @UseGuards(JwtRefreshGuard)
   buyNow(@CurrentUser() user: any, @Body() dto: BuyNowDto) {
     return this.ordersService.buyNow(user.sub, dto);
   }
 
-  @Get('/my-orders')
+  @Get('my-orders')
   @UseGuards(JwtRefreshGuard, RolesGuard)
   @Roles(Role.CUSTOMER)
   async myOrder(@CurrentUser() user: any, @Query('status') status?: string) {
-    const userId = user?.sub || user?.id;
+    console.log('hitted');
+    const userId = user?.sub;
     if (!userId) {
       throw new BadRequestException('User ID not found in request');
     }
-    return await this.ordersService.find(userId, status);
+    const userOrders = await this.ordersService.find(userId, status);
+    return userOrders;
   }
 
   @Get('track/:orderNumber')
   async trackOrder(@Param('orderNumber') orderNumber: string) {
     const order = await this.ordersService.findOneByOrderId(orderNumber);
     return order;
+  }
+
+  @Get(':id')
+  async getOrderById(@Param('id') id: string) {
+    return await this.ordersService.getOrderById(id);
   }
 }

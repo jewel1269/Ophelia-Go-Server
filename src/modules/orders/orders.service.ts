@@ -233,7 +233,6 @@ export class OrdersService {
   }
 
   async find(userId: string, status?: string) {
-    console.log(userId, status);
     const cacheKey = `orders:user:${userId}:${status || 'ALL'}`;
     const cachedOrders = await getCache(cacheKey);
     if (cachedOrders) return cachedOrders;
