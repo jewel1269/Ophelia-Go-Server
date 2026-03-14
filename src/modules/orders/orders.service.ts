@@ -294,7 +294,17 @@ export class OrdersService {
     if (paymentStatus) {
       where.paymentStatus = paymentStatus;
     }
-    const [orders, total] = await Promise.all([
+
+    const [
+      orders,
+      total,
+      pending,
+      delivered,
+      cancelled,
+      processing,
+      shipped,
+      returned,
+    ] = await Promise.all([
       this.prisma.order.findMany({
         where,
         skip,
@@ -316,6 +326,12 @@ export class OrdersService {
         },
       }),
       this.prisma.order.count({ where }),
+      this.prisma.order.count({ where: { ...where, status: 'PENDING' } }),
+      this.prisma.order.count({ where: { ...where, status: 'DELIVERED' } }),
+      this.prisma.order.count({ where: { ...where, status: 'CANCELLED' } }),
+      this.prisma.order.count({ where: { ...where, status: 'PROCESSING' } }),
+      this.prisma.order.count({ where: { ...where, status: 'SHIPPED' } }),
+      this.prisma.order.count({ where: { ...where, status: 'RETURNED' } }),
     ]);
 
     return {
@@ -326,6 +342,15 @@ export class OrdersService {
         limit: Number(limit),
         lastPage: Math.ceil(total / Number(limit)),
       },
+      stats: {
+        total,
+        pending,
+        delivered,
+        cancelled,
+        processing,
+        shipped,
+        returned,
+      },
     };
   }
 
@@ -333,8 +358,23 @@ export class OrdersService {
     return await this.prisma.order.findUnique({
       where: { id },
       include: {
-        orderItems: { include: { variant: true } },
+        user: true,
+
+        orderItems: {
+          include: {
+            variant: true,
+            product: true,
+          },
+        },
       },
     });
+  }
+
+  async updateOrderStatus(id: string, dto: any) {
+    const orderUpdate = await this.prisma.order.update({
+      where: { id },
+      data: dto,
+    });
+    return orderUpdate;
   }
 }

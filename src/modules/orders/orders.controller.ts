@@ -7,6 +7,7 @@ import {
   UseGuards,
   Query,
   BadRequestException,
+  Put,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -61,8 +62,13 @@ export class OrdersController {
     return order;
   }
 
-  @Get(':id')
+  @Get('details/:id')
   async getOrderById(@Param('id') id: string) {
     return await this.ordersService.getOrderById(id);
+  }
+  @Put('update-status/:id')
+  async updateOrderStatus(@Param('id') id: string, @Body() dto: any) {
+    const update = await this.ordersService.updateOrderStatus(id, dto);
+    return update;
   }
 }
