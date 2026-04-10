@@ -218,7 +218,10 @@ model Coupon {
   startDate   DateTime
   endDate     DateTime
   isActive    Boolean      @default(true)
-  usageLimit  Int?
+  isPrivate       Boolean      @default(false) 
+  userId          String?      
+  limitPerUser    Int          @default(1)
+  usageLimit  Int?          
   usedCount   Int          @default(0)
 
   orders Order[]
