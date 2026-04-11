@@ -16,6 +16,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { BannerModule } from './modules/banner/banner.module';
 import { ReviewModule } from './modules/review/review.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { CouponModule } from './modules/coupon/coupon.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     BannerModule,
     ReviewModule,
     DashboardModule,
+    CouponModule,
   ],
   controllers: [AppController],
   providers: [AppService],
