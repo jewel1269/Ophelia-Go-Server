@@ -119,7 +119,7 @@ export class CartService {
       },
     });
     if (!cartItem) throw new NotFoundException('Cart item not found');
-    const updated = await this.prisma.cartItem.update({
+    await this.prisma.cartItem.update({
       where: { id: cartItem.id },
       data: { quantity },
     });

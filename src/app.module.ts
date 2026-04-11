@@ -15,6 +15,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { CartModule } from './modules/cart/cart.module';
 import { BannerModule } from './modules/banner/banner.module';
 import { ReviewModule } from './modules/review/review.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { CouponModule } from './modules/coupon/coupon.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { CouponModule } from './modules/coupon/coupon.module';
     CartModule,
     BannerModule,
     ReviewModule,
+    DashboardModule,
     CouponModule,
   ],
   controllers: [AppController],

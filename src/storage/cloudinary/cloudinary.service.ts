@@ -19,7 +19,10 @@ export class CloudinaryService {
           error: UploadApiErrorResponse | undefined,
           result: UploadApiResponse | undefined,
         ) => {
-          if (error) return reject(error);
+          if (error)
+            return reject(
+              new Error(error.message || 'Cloudinary upload failed'),
+            );
           if (!result)
             return reject(
               new Error('Cloudinary upload failed: No result found'),
@@ -39,7 +42,7 @@ export class CloudinaryService {
   async deleteFile(publicId: string): Promise<any> {
     try {
       return await cloudinary.uploader.destroy(publicId);
-    } catch (error) {
+    } catch (_error) {
       throw new Error(`Failed to delete file: ${publicId}`);
     }
   }
