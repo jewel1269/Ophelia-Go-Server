@@ -13,7 +13,7 @@ async function bootstrap() {
     logger:
       process.env.NODE_ENV === 'production'
         ? ['error', 'warn']
-        : ['error', 'warn'],
+        : ['error', 'warn', 'log', 'debug', 'verbose'],
   });
   // Global Interceptor
   app.useGlobalInterceptors(new ResponseInterceptor());
@@ -61,7 +61,6 @@ async function bootstrap() {
   const PORT = process.env.PORT || 5000;
   await app.listen(PORT);
 
-  console.clear();
   logger.log(`🚀 Application is running on: http://localhost:${PORT}/api/v1`);
   logger.log(`📄 Swagger Docs available at: http://localhost:${PORT}/docs`);
 }

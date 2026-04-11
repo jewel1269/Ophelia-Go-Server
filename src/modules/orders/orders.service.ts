@@ -132,7 +132,7 @@ export class OrdersService {
     addressId: string,
     shippingCost: number = 0,
   ) {
-    const { orderItems, subTotal } = this.validateCartAndCalculate(cart);
+    const { subTotal } = this.validateCartAndCalculate(cart);
     const totalAmount = subTotal + shippingCost;
     const orderNumber = generateOrderNumber();
     return {
