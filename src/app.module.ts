@@ -15,6 +15,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { CartModule } from './modules/cart/cart.module';
 import { BannerModule } from './modules/banner/banner.module';
 import { ReviewModule } from './modules/review/review.module';
+import { CouponModule } from './modules/coupon/coupon.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ReviewModule } from './modules/review/review.module';
     CartModule,
     BannerModule,
     ReviewModule,
+    CouponModule,
   ],
   controllers: [AppController],
   providers: [AppService],
