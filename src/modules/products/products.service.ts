@@ -61,7 +61,7 @@ export class ProductsService {
       if (cached) return cached;
     }
     const { search, category, brand, status, stockLevel } = query || {};
-    let where: any = {};
+    const where: any = {};
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
