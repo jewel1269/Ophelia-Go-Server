@@ -73,7 +73,15 @@ export class UsersController {
     description:
       'Public route. Authenticates a user using email & password and returns access & refresh tokens. Refresh token is also set as an httpOnly cookie.',
   })
-  @ApiBody({ type: CreateUserDto })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', example: 'rocky.admin@opheliago.com' },
+        password: { type: 'string', example: 'StrongPass@123' },
+      },
+    },
+  })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
@@ -87,6 +95,7 @@ export class UsersController {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 

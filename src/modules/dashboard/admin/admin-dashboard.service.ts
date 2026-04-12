@@ -7,7 +7,16 @@ import {
   Role,
   TicketStatus,
 } from '@prisma/client';
-import { DashboardRange } from './dto/dashboard-query.dto';
+import {
+  CustomerType,
+  DashboardRange,
+  InventoryType,
+  OrderInsightType,
+  ReviewType,
+  SalesType,
+  TicketInsightType,
+  TopType,
+} from './dto/admin-dashboard-query.dto';
 
 // Order statuses that contribute to "booked revenue". Cancelled / returned
 // orders are excluded since they don't represent real revenue.
@@ -19,17 +28,13 @@ const REVENUE_ORDER_STATUSES: OrderStatus[] = [
 ];
 
 @Injectable()
-export class DashboardService {
+export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Converts a DashboardRange enum value into a Prisma-compatible date filter.
-   * Returns an empty object for ALL_TIME so it can be spread directly.
-   */
   private dateBounds(range: DashboardRange = DashboardRange.LAST_30_DAYS): {
     gte?: Date;
   } {
@@ -303,13 +308,42 @@ export class DashboardService {
     }));
   }
 
+  async salesByType(range: DashboardRange, type: SalesType) {
+    switch (type) {
+      case SalesType.STATUS:
+        return this.salesByStatus(range);
+      case SalesType.PAYMENT_METHOD:
+        return this.salesByPaymentMethod(range);
+      case SalesType.CATEGORY:
+        return this.salesByCategory(range);
+      case SalesType.BRAND:
+        return this.salesByBrand(range);
+      default: {
+        const [byStatus, byPaymentMethod, byCategory, byBrand] =
+          await Promise.all([
+            this.salesByStatus(range),
+            this.salesByPaymentMethod(range),
+            this.salesByCategory(range),
+            this.salesByBrand(range),
+          ]);
+        return { byStatus, byPaymentMethod, byCategory, byBrand };
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 3. Top lists
   // ---------------------------------------------------------------------------
 
-  async topProducts(range: DashboardRange, limit: number) {
-    const bounds = this.dateBounds(range);
-    const gte = bounds.gte ?? new Date(0);
+  private dateRangeBounds(from?: string, to?: string): { gte: Date; lte?: Date } {
+    return {
+      gte: from ? new Date(from) : new Date(0),
+      ...(to ? { lte: new Date(to) } : {}),
+    };
+  }
+
+  async topProducts(limit: number, from?: string, to?: string) {
+    const { gte, lte } = this.dateRangeBounds(from, to);
 
     const rows = await this.prisma.$queryRaw<
       {
@@ -332,6 +366,7 @@ export class DashboardService {
       JOIN products p ON oi."productId" = p.id
       JOIN orders o ON oi."orderId" = o.id
       WHERE o."createdAt" >= ${gte}
+        ${lte ? Prisma.sql`AND o."createdAt" <= ${lte}` : Prisma.empty}
         AND o."status"::text NOT IN ('CANCELLED', 'RETURNED')
       GROUP BY p.id, p.name, p.sku, p.thumbnail
       ORDER BY units DESC, revenue DESC
@@ -348,9 +383,8 @@ export class DashboardService {
     }));
   }
 
-  async topCustomers(range: DashboardRange, limit: number) {
-    const bounds = this.dateBounds(range);
-    const gte = bounds.gte ?? new Date(0);
+  async topCustomers(limit: number, from?: string, to?: string) {
+    const { gte, lte } = this.dateRangeBounds(from, to);
 
     const rows = await this.prisma.$queryRaw<
       {
@@ -372,6 +406,7 @@ export class DashboardService {
       FROM users u
       JOIN orders o ON o."userId" = u.id
       WHERE o."createdAt" >= ${gte}
+        ${lte ? Prisma.sql`AND o."createdAt" <= ${lte}` : Prisma.empty}
         AND o."status"::text NOT IN ('CANCELLED', 'RETURNED')
       GROUP BY u.id, u.name, u.email, u.phone
       ORDER BY "totalSpent" DESC
@@ -388,14 +423,83 @@ export class DashboardService {
     }));
   }
 
-  async topCategories(range: DashboardRange, limit: number) {
-    const full = await this.salesByCategory(range);
-    return full.slice(0, limit);
+  async topCategories(limit: number, from?: string, to?: string) {
+    const bounds = this.dateRangeBounds(from, to);
+    const gte = bounds.gte;
+    const lte = bounds.lte;
+
+    const rows = await this.prisma.$queryRaw<
+      { categoryId: string; name: string; revenue: number; units: bigint }[]
+    >(Prisma.sql`
+      SELECT
+        c.id AS "categoryId",
+        c.name,
+        COALESCE(SUM(oi.price * oi.quantity), 0)::float AS revenue,
+        COALESCE(SUM(oi.quantity), 0)::bigint AS units
+      FROM order_items oi
+      JOIN products p ON oi."productId" = p.id
+      JOIN categories c ON p."categoryId" = c.id
+      JOIN orders o ON oi."orderId" = o.id
+      WHERE o."createdAt" >= ${gte}
+        ${lte ? Prisma.sql`AND o."createdAt" <= ${lte}` : Prisma.empty}
+        AND o."status"::text NOT IN ('CANCELLED', 'RETURNED')
+      GROUP BY c.id, c.name
+      ORDER BY revenue DESC
+      LIMIT ${limit}
+    `);
+
+    return rows.map((r) => ({
+      categoryId: r.categoryId,
+      name: r.name,
+      revenue: Number(r.revenue),
+      units: Number(r.units),
+    }));
   }
 
-  async topBrands(range: DashboardRange, limit: number) {
-    const full = await this.salesByBrand(range);
-    return full.slice(0, limit);
+  async topBrands(limit: number, from?: string, to?: string) {
+    const bounds = this.dateRangeBounds(from, to);
+    const gte = bounds.gte;
+    const lte = bounds.lte;
+
+    const rows = await this.prisma.$queryRaw<
+      { brandId: string; name: string; revenue: number; units: bigint }[]
+    >(Prisma.sql`
+      SELECT
+        b.id AS "brandId",
+        b.name,
+        COALESCE(SUM(oi.price * oi.quantity), 0)::float AS revenue,
+        COALESCE(SUM(oi.quantity), 0)::bigint AS units
+      FROM order_items oi
+      JOIN products p ON oi."productId" = p.id
+      JOIN brands b ON p."brandId" = b.id
+      JOIN orders o ON oi."orderId" = o.id
+      WHERE o."createdAt" >= ${gte}
+        ${lte ? Prisma.sql`AND o."createdAt" <= ${lte}` : Prisma.empty}
+        AND o."status"::text NOT IN ('CANCELLED', 'RETURNED')
+      GROUP BY b.id, b.name
+      ORDER BY revenue DESC
+      LIMIT ${limit}
+    `);
+
+    return rows.map((r) => ({
+      brandId: r.brandId,
+      name: r.name,
+      revenue: Number(r.revenue),
+      units: Number(r.units),
+    }));
+  }
+
+  async topByType(type: TopType, limit: number, from?: string, to?: string) {
+    switch (type) {
+      case TopType.CUSTOMERS:
+        return this.topCustomers(limit, from, to);
+      case TopType.CATEGORIES:
+        return this.topCategories(limit, from, to);
+      case TopType.BRANDS:
+        return this.topBrands(limit, from, to);
+      default:
+        return this.topProducts(limit, from, to);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -475,9 +579,9 @@ export class DashboardService {
     };
   }
 
-  async neverSoldProducts() {
+  async neverSoldProducts(staleDays = 30) {
     const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
+    cutoff.setDate(cutoff.getDate() - staleDays);
     const items = await this.prisma.product.findMany({
       where: {
         orderCount: 0,
@@ -499,13 +603,41 @@ export class DashboardService {
     return { count: items.length, items };
   }
 
+  async inventoryByType(
+    type: InventoryType,
+    threshold: number,
+    staleDays: number,
+    from?: string,
+    to?: string,
+  ) {
+    switch (type) {
+      case InventoryType.LOW_STOCK:
+        return this.lowStockProducts(threshold);
+      case InventoryType.OUT_OF_STOCK:
+        return this.outOfStockProducts();
+      case InventoryType.STOCK_VALUE:
+        return this.stockValue();
+      case InventoryType.NEVER_SOLD:
+        return this.neverSoldProducts(staleDays);
+      default: {
+        const [lowStock, outOfStock, stockVal, neverSold] = await Promise.all([
+          this.lowStockProducts(threshold),
+          this.outOfStockProducts(),
+          this.stockValue(),
+          this.neverSoldProducts(staleDays),
+        ]);
+        return { lowStock, outOfStock, stockValue: stockVal, neverSold };
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 5. Customer insights
   // ---------------------------------------------------------------------------
 
-  async newCustomersTimeSeries(range: DashboardRange) {
-    const bounds = this.dateBounds(range);
-    const gte = bounds.gte ?? new Date(0);
+  async newCustomersTimeSeries(from?: string, to?: string) {
+    const gte = from ? new Date(from) : new Date(0);
+    const lte = to ? new Date(to) : undefined;
 
     const rows = await this.prisma.$queryRaw<
       { date: Date; count: bigint }[]
@@ -516,6 +648,7 @@ export class DashboardService {
       FROM users
       WHERE role = 'CUSTOMER'
         AND "createdAt" >= ${gte}
+        ${lte ? Prisma.sql`AND "createdAt" <= ${lte}` : Prisma.empty}
       GROUP BY 1
       ORDER BY 1 ASC
     `);
@@ -523,9 +656,9 @@ export class DashboardService {
     return rows.map((r) => ({ date: r.date, count: Number(r.count) }));
   }
 
-  async returningVsNew(range: DashboardRange) {
-    const bounds = this.dateBounds(range);
-    const gte = bounds.gte ?? new Date(0);
+  async returningVsNew(from?: string, to?: string) {
+    const gte = from ? new Date(from) : new Date(0);
+    const lte = to ? new Date(to) : undefined;
 
     const rows = await this.prisma.$queryRaw<
       { bucket: string; customers: bigint; orders: bigint }[]
@@ -537,6 +670,7 @@ export class DashboardService {
         FROM users u
         JOIN orders o ON o."userId" = u.id
         WHERE o."createdAt" >= ${gte}
+          ${lte ? Prisma.sql`AND o."createdAt" <= ${lte}` : Prisma.empty}
           AND o."status"::text NOT IN ('CANCELLED', 'RETURNED')
         GROUP BY u.id
       )
@@ -581,14 +715,38 @@ export class DashboardService {
     }));
   }
 
+  async customersByType(type: CustomerType, limit: number, from?: string, to?: string) {
+    switch (type) {
+      case CustomerType.NEW_SIGNUPS:
+        return this.newCustomersTimeSeries(from, to);
+      case CustomerType.RETURNING_VS_NEW:
+        return this.returningVsNew(from, to);
+      case CustomerType.LOCATIONS:
+        return this.customerLocations(limit);
+      default: {
+        const [newSignups, returningVsNew, locations] = await Promise.all([
+          this.newCustomersTimeSeries(from, to),
+          this.returningVsNew(from, to),
+          this.customerLocations(limit),
+        ]);
+        return { newSignups, returningVsNew, locations };
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 6. Orders operations
   // ---------------------------------------------------------------------------
 
-  async recentOrders(limit: number) {
+  async recentOrders(limit: number, from?: string, to?: string) {
+    const gte = from ? new Date(from) : undefined;
+    const lte = to ? new Date(to) : undefined;
     return this.prisma.order.findMany({
       take: limit,
       orderBy: { createdAt: 'desc' },
+      where: {
+        ...(gte || lte ? { createdAt: { ...(gte && { gte }), ...(lte && { lte }) } } : {}),
+      },
       select: {
         id: true,
         orderNumber: true,
@@ -602,14 +760,20 @@ export class DashboardService {
     });
   }
 
-  async pendingActionsOrders() {
+  async pendingActionsOrders(from?: string, to?: string) {
     const cutoff = new Date();
     cutoff.setHours(cutoff.getHours() - 24);
+    const gte = from ? new Date(from) : undefined;
+    const lte = to ? new Date(to) : undefined;
 
     const stuck = await this.prisma.order.findMany({
       where: {
         status: { in: [OrderStatus.PENDING, OrderStatus.PROCESSING] },
-        createdAt: { lt: cutoff },
+        createdAt: {
+          lt: cutoff,
+          ...(gte && { gte }),
+          ...(lte && { lte }),
+        },
       },
       orderBy: { createdAt: 'asc' },
       select: {
@@ -624,9 +788,11 @@ export class DashboardService {
     return { olderThanHours: 24, count: stuck.length, items: stuck };
   }
 
-  async returnsRate(range: DashboardRange) {
-    const bounds = this.dateBounds(range);
-    const where = { createdAt: bounds };
+  async returnsRate(from?: string, to?: string) {
+    const gte = from ? new Date(from) : undefined;
+    const lte = to ? new Date(to) : undefined;
+    const dateFilter = gte || lte ? { ...(gte && { gte }), ...(lte && { lte }) } : undefined;
+    const where = dateFilter ? { createdAt: dateFilter } : {};
     const [delivered, cancelled, returned, total] = await Promise.all([
       this.prisma.order.count({
         where: { ...where, status: OrderStatus.DELIVERED },
@@ -650,9 +816,9 @@ export class DashboardService {
     };
   }
 
-  async fulfillmentTime(range: DashboardRange) {
-    const bounds = this.dateBounds(range);
-    const gte = bounds.gte ?? new Date(0);
+  async fulfillmentTime(from?: string, to?: string) {
+    const gte = from ? new Date(from) : new Date(0);
+    const lte = to ? new Date(to) : undefined;
 
     const rows = await this.prisma.$queryRaw<
       { avgHours: number | null; sampleSize: bigint }[]
@@ -662,6 +828,7 @@ export class DashboardService {
         COUNT(*)::bigint AS "sampleSize"
       FROM orders
       WHERE "createdAt" >= ${gte}
+        ${lte ? Prisma.sql`AND "createdAt" <= ${lte}` : Prisma.empty}
         AND "status"::text IN ('SHIPPED', 'DELIVERED')
     `);
     const r = rows[0];
@@ -670,6 +837,28 @@ export class DashboardService {
       sampleSize: Number(r?.sampleSize ?? 0),
       note: 'Approximated using updatedAt - createdAt on SHIPPED/DELIVERED orders.',
     };
+  }
+
+  async orderInsightsByType(type: OrderInsightType, limit: number, from?: string, to?: string) {
+    switch (type) {
+      case OrderInsightType.RECENT:
+        return this.recentOrders(limit, from, to);
+      case OrderInsightType.PENDING_ACTIONS:
+        return this.pendingActionsOrders(from, to);
+      case OrderInsightType.RETURNS_RATE:
+        return this.returnsRate(from, to);
+      case OrderInsightType.FULFILLMENT_TIME:
+        return this.fulfillmentTime(from, to);
+      default: {
+        const [recent, pendingActions, returnsRate, fulfillmentTime] = await Promise.all([
+          this.recentOrders(limit, from, to),
+          this.pendingActionsOrders(from, to),
+          this.returnsRate(from, to),
+          this.fulfillmentTime(from, to),
+        ]);
+        return { recent, pendingActions, returnsRate, fulfillmentTime };
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -801,9 +990,12 @@ export class DashboardService {
   // 8. Reviews / quality
   // ---------------------------------------------------------------------------
 
-  async pendingReviews(limit: number) {
+  async pendingReviews(limit: number, from?: string, to?: string) {
+    const gte = from ? new Date(from) : undefined;
+    const lte = to ? new Date(to) : undefined;
+    const dateFilter = gte || lte ? { ...(gte && { gte }), ...(lte && { lte }) } : undefined;
     const items = await this.prisma.review.findMany({
-      where: { isApproved: false, isArchived: false },
+      where: { isApproved: false, isArchived: false, ...(dateFilter && { createdAt: dateFilter }) },
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -811,9 +1003,7 @@ export class DashboardService {
         product: { select: { id: true, name: true, thumbnail: true } },
       },
     });
-    const total = await this.prisma.review.count({
-      where: { isApproved: false, isArchived: false },
-    });
+    const total = await this.prisma.review.count({ where: { isApproved: false, isArchived: false } });
     return { count: total, items };
   }
 
@@ -866,24 +1056,49 @@ export class DashboardService {
     return { threshold: 3, minReviewCount, count: rows.length, items: rows };
   }
 
+  async reviewsByType(type: ReviewType, limit: number, minReviewCount: number, from?: string, to?: string) {
+    switch (type) {
+      case ReviewType.PENDING:
+        return this.pendingReviews(limit, from, to);
+      case ReviewType.SUMMARY:
+        return this.reviewsSummary();
+      case ReviewType.LOW_RATED:
+        return this.lowRatedProducts(minReviewCount);
+      default: {
+        const [pending, summary, lowRated] = await Promise.all([
+          this.pendingReviews(limit, from, to),
+          this.reviewsSummary(),
+          this.lowRatedProducts(minReviewCount),
+        ]);
+        return { pending, summary, lowRated };
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 9. Support / tickets
   // ---------------------------------------------------------------------------
 
-  async ticketsSummary() {
+  async ticketsSummary(from?: string, to?: string) {
+    const gte = from ? new Date(from) : undefined;
+    const lte = to ? new Date(to) : undefined;
+    const dateFilter = gte || lte ? { ...(gte && { gte }), ...(lte && { lte }) } : undefined;
+    const where = dateFilter ? { createdAt: dateFilter } : {};
     const [byStatus, byPriority, total] = await Promise.all([
       this.prisma.ticket.groupBy({
         by: ['status'],
+        where,
         _count: { _all: true },
       }),
       this.prisma.ticket.groupBy({
         by: ['priority'],
         where: {
+          ...where,
           status: { notIn: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
         },
         _count: { _all: true },
       }),
-      this.prisma.ticket.count(),
+      this.prisma.ticket.count({ where }),
     ]);
 
     return {
@@ -899,10 +1114,14 @@ export class DashboardService {
     };
   }
 
-  async openTicketsByPriority() {
+  async openTicketsByPriority(from?: string, to?: string) {
+    const gte = from ? new Date(from) : undefined;
+    const lte = to ? new Date(to) : undefined;
+    const dateFilter = gte || lte ? { ...(gte && { gte }), ...(lte && { lte }) } : undefined;
     const items = await this.prisma.ticket.findMany({
       where: {
         status: { notIn: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
+        ...(dateFilter && { createdAt: dateFilter }),
       },
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
       include: {
@@ -913,10 +1132,9 @@ export class DashboardService {
     return { count: items.length, items };
   }
 
-  async ticketResponseTime() {
-    // Average time between the first customer message in a ticket and the
-    // first admin reply after it. If there's no admin reply yet, the ticket
-    // is excluded from the average (it's still "waiting").
+  async ticketResponseTime(from?: string, to?: string) {
+    const gte = from ? new Date(from) : undefined;
+    const lte = to ? new Date(to) : undefined;
     const rows = await this.prisma.$queryRaw<
       { avgMinutes: number | null; sampleSize: bigint }[]
     >(Prisma.sql`
@@ -932,6 +1150,8 @@ export class DashboardService {
         JOIN first_customer fc ON fc."ticketId" = tm."ticketId"
         WHERE tm."isAdmin" = true
           AND tm."createdAt" >= fc.first_at
+          ${gte ? Prisma.sql`AND tm."createdAt" >= ${gte}` : Prisma.empty}
+          ${lte ? Prisma.sql`AND tm."createdAt" <= ${lte}` : Prisma.empty}
         GROUP BY tm."ticketId"
       )
       SELECT
@@ -945,6 +1165,25 @@ export class DashboardService {
       avgMinutes: r?.avgMinutes ? Number(r.avgMinutes) : null,
       sampleSize: Number(r?.sampleSize ?? 0),
     };
+  }
+
+  async ticketsByType(type: TicketInsightType, from?: string, to?: string) {
+    switch (type) {
+      case TicketInsightType.SUMMARY:
+        return this.ticketsSummary(from, to);
+      case TicketInsightType.OPEN_BY_PRIORITY:
+        return this.openTicketsByPriority(from, to);
+      case TicketInsightType.RESPONSE_TIME:
+        return this.ticketResponseTime(from, to);
+      default: {
+        const [summary, openByPriority, responseTime] = await Promise.all([
+          this.ticketsSummary(from, to),
+          this.openTicketsByPriority(from, to),
+          this.ticketResponseTime(from, to),
+        ]);
+        return { summary, openByPriority, responseTime };
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
