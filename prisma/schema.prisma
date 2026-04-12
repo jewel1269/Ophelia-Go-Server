@@ -57,6 +57,24 @@ enum TicketPriority {
   HIGH
 }
 
+enum StockMovementType {
+  INITIAL      // first-time stock setup
+  PURCHASE     // received from supplier via purchase order
+  SALE         // deducted when an order is placed
+  RETURN       // customer returned item, stock restored
+  ADJUSTMENT   // manual admin correction
+  DAMAGE       // written off as damaged/lost
+  TRANSFER     // moved between warehouse locations
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
 model User {
   id                 String  @id @default(uuid())
   email              String  @unique
@@ -154,12 +172,14 @@ model Product {
   averageRating Float    @default(0)
   // descriptionEmbedding Unsupported("vector(1536)")?
 
-  variants       ProductVariant[]
-  reviews        Review[]
-  orderItems     OrderItem[]
-  cartItems      CartItem[]
-  wishlistItems  WishlistItem[]
-  flashSaleItems FlashSaleItem[]
+  variants            ProductVariant[]
+  reviews             Review[]
+  orderItems          OrderItem[]
+  cartItems           CartItem[]
+  wishlistItems       WishlistItem[]
+  flashSaleItems      FlashSaleItem[]
+  stockMovements      StockMovement[]
+  purchaseOrderItems  PurchaseOrderItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -178,8 +198,10 @@ model ProductVariant {
   stock      Int     @default(0)
   attributes Json
 
-  orderItems OrderItem[]
-  cartItems  CartItem[]
+  orderItems         OrderItem[]
+  cartItems          CartItem[]
+  stockMovements     StockMovement[]
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@map("product_variants")
 }
@@ -444,4 +466,108 @@ model ActivityLog {
   createdAt DateTime @default(now())
 
   @@map("activity_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory System
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id            String  @id @default(uuid())
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  city          String?
+  country       String  @default("Bangladesh")
+  isActive      Boolean @default(true)
+  notes         String?
+  leadTimeDays  Int?    // average days from order to delivery
+
+  purchaseOrders PurchaseOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("suppliers")
+}
+
+model WarehouseLocation {
+  id        String  @id @default(uuid())
+  name      String  // e.g. "Main Warehouse", "Shelf B4"
+  code      String  @unique // e.g. "WH-MAIN", "SHELF-B4"
+  address   String?
+  city      String?
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  stockMovements StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("warehouse_locations")
+}
+
+model PurchaseOrder {
+  id           String              @id @default(uuid())
+  poNumber     String              @unique
+  supplierId   String
+  supplier     Supplier            @relation(fields: [supplierId], references: [id])
+  status       PurchaseOrderStatus @default(DRAFT)
+  expectedDate DateTime?
+  receivedDate DateTime?
+  totalCost    Float               @default(0)
+  notes        String?
+
+  items         PurchaseOrderItem[]
+  stockMovements StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String         @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product        @relation(fields: [productId], references: [id])
+  variantId       String?
+  variant         ProductVariant? @relation(fields: [variantId], references: [id])
+  orderedQty      Int
+  receivedQty     Int            @default(0)
+  costPrice       Float          // price you paid per unit
+
+  @@map("purchase_order_items")
+}
+
+model StockMovement {
+  id              String             @id @default(uuid())
+  productId       String
+  product         Product            @relation(fields: [productId], references: [id])
+  variantId       String?
+  variant         ProductVariant?    @relation(fields: [variantId], references: [id])
+  type            StockMovementType
+  delta           Int                // positive = stock in, negative = stock out
+  stockBefore     Int
+  stockAfter      Int
+  reason          String?            // human-readable reason
+  note            String?            // optional admin note
+  reference       String?            // e.g. order number, PO number
+  locationId      String?
+  location        WarehouseLocation? @relation(fields: [locationId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  performedById   String             // admin user id (not a FK to keep logs even if user deleted)
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([variantId])
+  @@index([type])
+  @@map("stock_movements")
 }
