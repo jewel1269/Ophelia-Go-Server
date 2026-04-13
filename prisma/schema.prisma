@@ -36,7 +36,13 @@ enum PaymentMethod {
   BKASH
   NAGAD
   SSLCOMMERZ
+  AMARPAY
   STRIPE
+}
+
+enum GatewayEnvironment {
+  SANDBOX
+  LIVE
 }
 
 enum DiscountType {
@@ -433,6 +439,20 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@map("notifications")
+}
+
+model PaymentGatewayConfig {
+  id          String             @id @default(uuid())
+  name        String             @unique // e.g. "sslcommerz", "bkash", "amarpay"
+  displayName String
+  isActive    Boolean            @default(false)
+  credentials Json               @default("{}")
+  environment GatewayEnvironment @default(SANDBOX)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_gateway_configs")
 }
 
 model ActivityLog {
