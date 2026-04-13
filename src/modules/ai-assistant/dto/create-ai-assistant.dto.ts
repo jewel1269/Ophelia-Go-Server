@@ -1,28 +1,52 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+
+export class ChatPartDto {
+  @IsString()
+  text: string;
+}
+
+export class ChatHistoryItemDto {
+  @IsString()
+  role: 'user' | 'model';
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ChatPartDto)
+  parts: ChatPartDto[];
+}
 
 export class CreateAiAssistantDto {
   @ApiProperty({
-    description: 'User message sent to the AI assistant',
-    example: 'What are your best selling t-shirts this season?',
+    description: 'The user message to send to the AI assistant',
+    example: 'আমি একটি কুর্তি কিনতে চাই, বাজেট ৮০০ টাকা',
   })
   @IsString()
   @IsNotEmpty()
   message: string;
 
   @ApiPropertyOptional({
-    description: 'Chat session id (used to keep conversation history)',
-    example: 'chat_01H8Z2Y3X4W5V6U7T8S9',
-  })
-  @IsString()
-  @IsNotEmpty()
-  chatId?: string;
-
-  @ApiPropertyOptional({
-    description: 'ID of the user sending the message',
+    description: 'Logged-in user ID (required for placing orders)',
     example: 'd1e2f3a4-1234-4567-89ab-cdef01234567',
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   userId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Full conversation history for context continuity',
+    type: [ChatHistoryItemDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ChatHistoryItemDto)
+  history?: ChatHistoryItemDto[];
 }

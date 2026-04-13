@@ -7,7 +7,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { JwtAuthGuard } from 'src/common/guards/auth.guard';
+import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { AdminDashboardService } from './admin-dashboard.service';
 import {
@@ -24,7 +24,7 @@ import {
 
 @ApiTags('Admin Dashboard')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtRefreshGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.SUPER_ADMIN)
 @Controller('dashboard/admin')
 export class AdminDashboardController {
@@ -69,7 +69,10 @@ export class AdminDashboardController {
       '- payment-method — transactions & revenue per gateway (PAID only)\n' +
       '- category — revenue & units per product category\n' +
       '- brand — revenue & units per brand\n' +
-      '- all (default) — returns all four groups in one response',
+      '- day-of-week — orders & revenue per weekday (Sun–Sat)\n' +
+      '- aov-trend — daily average order value time series\n' +
+      '- repeat-rate — repeat purchase rate summary + weekly trend\n' +
+      '- all (default) — returns all groups in one response',
   })
   sales(@Query() q: SalesQueryDto) {
     return this.dashboard.salesByType(q.range!, q.type!);

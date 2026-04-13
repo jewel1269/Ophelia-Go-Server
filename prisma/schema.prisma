@@ -620,6 +620,7 @@ model StockMovement {
   @@index([variantId])
   @@index([type])
   @@map("stock_movements")
+}
 model AdminNotification {
   id        String         @id @default(uuid())
   type      AdminNotifType
