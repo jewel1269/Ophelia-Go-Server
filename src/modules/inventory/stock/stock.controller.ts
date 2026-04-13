@@ -17,7 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { Role, StockMovementType } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { JwtAuthGuard } from 'src/common/guards/auth.guard';
+import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { BulkAdjustStockDto } from './dto/bulk-adjust-stock.dto';
@@ -25,7 +25,7 @@ import { StockService } from './stock.service';
 
 @ApiTags('Inventory — Stock')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtRefreshGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.SUPER_ADMIN)
 @Controller('inventory/stock')
 export class StockController {
@@ -68,7 +68,7 @@ export class StockController {
       'Use negative delta to reduce stock (damage, shrinkage, etc.).',
   })
   adjust(@Body() dto: AdjustStockDto, @Req() req: any) {
-    return this.service.adjustStock(dto, req.user.id);
+    return this.service.adjustStock(dto, req.user.sub);
   }
 
   @Post('bulk-adjust')
@@ -78,7 +78,7 @@ export class StockController {
       'Applies all adjustments in a single transaction. If any item would go negative or is invalid, the entire batch is rolled back.',
   })
   bulkAdjust(@Body() dto: BulkAdjustStockDto, @Req() req: any) {
-    return this.service.bulkAdjust(dto, req.user.id);
+    return this.service.bulkAdjust(dto, req.user.sub);
   }
 
   @Get('movements')
@@ -148,5 +148,15 @@ export class StockController {
     @Query('limit') limit = '20',
   ) {
     return this.service.getOutOfStock({ page: +page, limit: +limit });
+  }
+
+  @Get('stats')
+  @ApiOperation({
+    summary: 'Inventory aggregate stats [ADMIN]',
+    description: 'Returns total products, total stock value, low-stock count, and out-of-stock count.',
+  })
+  @ApiQuery({ name: 'threshold', required: false, example: 10, description: 'Low-stock threshold' })
+  getStats(@Query('threshold') threshold = '10') {
+    return this.service.getInventoryStats({ threshold: +threshold });
   }
 }

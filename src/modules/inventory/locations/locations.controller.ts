@@ -16,7 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { JwtAuthGuard } from 'src/common/guards/auth.guard';
+import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
@@ -24,7 +24,7 @@ import { LocationsService } from './locations.service';
 
 @ApiTags('Inventory — Locations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtRefreshGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.SUPER_ADMIN)
 @Controller('inventory/locations')
 export class LocationsController {

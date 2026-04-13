@@ -57,10 +57,12 @@ export class UsersController {
   ) {
     const { user, accessToken, refreshToken } =
       await this.usersService.create(registerData);
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
     return { user, accessToken, refreshToken };
@@ -91,10 +93,11 @@ export class UsersController {
     const { user, accessToken, refreshToken } =
       await this.usersService.login(loginData);
 
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });

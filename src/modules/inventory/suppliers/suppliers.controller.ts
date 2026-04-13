@@ -18,7 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { JwtAuthGuard } from 'src/common/guards/auth.guard';
+import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -26,7 +26,7 @@ import { SuppliersService } from './suppliers.service';
 
 @ApiTags('Inventory — Suppliers')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtRefreshGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.SUPER_ADMIN)
 @Controller('inventory/suppliers')
 export class SuppliersController {

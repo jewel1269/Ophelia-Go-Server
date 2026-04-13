@@ -19,7 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { JwtAuthGuard } from 'src/common/guards/auth.guard';
+import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
@@ -28,7 +28,7 @@ import { PurchaseOrdersService } from './purchase-orders.service';
 
 @ApiTags('Inventory — Purchase Orders')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtRefreshGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.SUPER_ADMIN)
 @Controller('inventory/purchase-orders')
 export class PurchaseOrdersController {
@@ -40,7 +40,7 @@ export class PurchaseOrdersController {
     description: 'Creates a PO in DRAFT status. Use PATCH /:id to mark as ORDERED once sent to supplier.',
   })
   create(@Body() dto: CreatePurchaseOrderDto, @Req() req: any) {
-    return this.service.create(dto, req.user.id);
+    return this.service.create(dto, req.user.sub);
   }
 
   @Get()
@@ -92,7 +92,7 @@ export class PurchaseOrdersController {
     @Body() dto: ReceivePurchaseOrderDto,
     @Req() req: any,
   ) {
-    return this.service.receive(id, dto, req.user.id);
+    return this.service.receive(id, dto, req.user.sub);
   }
 
   @Patch(':id/cancel')
