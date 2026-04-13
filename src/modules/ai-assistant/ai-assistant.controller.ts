@@ -32,8 +32,7 @@ export class AiAssistantController {
   @ApiBody({ type: CreateAiAssistantDto })
   @ApiResponse({ status: 201, description: 'AI assistant response' })
   create(@Body() userChat: CreateAiAssistantDto) {
-    const chat = this.aiAssistantService.create(userChat);
-    return chat;
+    return this.aiAssistantService.chat(userChat);
   }
 
   @Post('/analyze')

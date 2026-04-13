@@ -308,6 +308,122 @@ export class AdminDashboardService {
     }));
   }
 
+  // Sales by day of week (0=Sun … 6=Sat)
+  async salesByDayOfWeek(range: DashboardRange) {
+    const bounds = this.dateBounds(range);
+    const gte = bounds.gte ?? new Date(0);
+
+    const rows = await this.prisma.$queryRaw<
+      { dow: number; orders: bigint; revenue: number }[]
+    >(Prisma.sql`
+      SELECT
+        EXTRACT(DOW FROM "createdAt")::int AS dow,
+        COUNT(*)::bigint                   AS orders,
+        COALESCE(SUM("totalAmount"), 0)::float AS revenue
+      FROM orders
+      WHERE "createdAt" >= ${gte}
+        AND "status"::text NOT IN ('CANCELLED', 'RETURNED')
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `);
+
+    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    // fill missing days with 0
+    return DAYS.map((day, i) => {
+      const row = rows.find((r) => r.dow === i);
+      return {
+        day,
+        orders: row ? Number(row.orders) : 0,
+        revenue: row ? Number(row.revenue) : 0,
+      };
+    });
+  }
+
+  // Daily AOV (Average Order Value) time series
+  async aovTrend(range: DashboardRange) {
+    const bounds = this.dateBounds(range);
+    const gte = bounds.gte ?? new Date(0);
+
+    const rows = await this.prisma.$queryRaw<
+      { date: Date; aov: number; orders: bigint }[]
+    >(Prisma.sql`
+      SELECT
+        DATE_TRUNC('day', "createdAt") AS date,
+        COALESCE(SUM("totalAmount") / NULLIF(COUNT(*), 0), 0)::float AS aov,
+        COUNT(*)::bigint AS orders
+      FROM orders
+      WHERE "createdAt" >= ${gte}
+        AND "status"::text NOT IN ('CANCELLED', 'RETURNED')
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `);
+
+    return rows.map((r) => ({
+      date: r.date,
+      aov: Number(r.aov),
+      orders: Number(r.orders),
+    }));
+  }
+
+  // Repeat purchase rate
+  async repeatPurchaseRate(range: DashboardRange) {
+    const bounds = this.dateBounds(range);
+    const gte = bounds.gte ?? new Date(0);
+
+    const rows = await this.prisma.$queryRaw<
+      { userId: string; orderCount: bigint }[]
+    >(Prisma.sql`
+      SELECT "userId", COUNT(*)::bigint AS "orderCount"
+      FROM orders
+      WHERE "createdAt" >= ${gte}
+        AND "status"::text NOT IN ('CANCELLED', 'RETURNED')
+        AND "userId" IS NOT NULL
+      GROUP BY "userId"
+    `);
+
+    const total = rows.length;
+    const repeats = rows.filter((r) => Number(r.orderCount) > 1).length;
+    const newBuyers = total - repeats;
+    const repeatRate = total > 0 ? Math.round((repeats / total) * 100) : 0;
+
+    // weekly trend: new vs repeat buyers bucketed by week
+    const trendRows = await this.prisma.$queryRaw<
+      { week: Date; newBuyers: bigint; repeatBuyers: bigint }[]
+    >(Prisma.sql`
+      SELECT
+        DATE_TRUNC('week', o."createdAt") AS week,
+        COUNT(DISTINCT CASE WHEN uc."orderCount" = 1 THEN o."userId" END)::bigint AS "newBuyers",
+        COUNT(DISTINCT CASE WHEN uc."orderCount" > 1 THEN o."userId" END)::bigint AS "repeatBuyers"
+      FROM orders o
+      JOIN (
+        SELECT "userId", COUNT(*)::bigint AS "orderCount"
+        FROM orders
+        WHERE "createdAt" >= ${gte}
+          AND "status"::text NOT IN ('CANCELLED', 'RETURNED')
+          AND "userId" IS NOT NULL
+        GROUP BY "userId"
+      ) uc ON uc."userId" = o."userId"
+      WHERE o."createdAt" >= ${gte}
+        AND o."status"::text NOT IN ('CANCELLED', 'RETURNED')
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `);
+
+    return {
+      summary: {
+        totalCustomers: total,
+        newBuyers,
+        repeatBuyers: repeats,
+        repeatRate,
+      },
+      weeklyTrend: trendRows.map((r) => ({
+        week: r.week,
+        newBuyers: Number(r.newBuyers),
+        repeatBuyers: Number(r.repeatBuyers),
+      })),
+    };
+  }
+
   async salesByType(range: DashboardRange, type: SalesType) {
     switch (type) {
       case SalesType.STATUS:
@@ -318,15 +434,24 @@ export class AdminDashboardService {
         return this.salesByCategory(range);
       case SalesType.BRAND:
         return this.salesByBrand(range);
+      case SalesType.DAY_OF_WEEK:
+        return this.salesByDayOfWeek(range);
+      case SalesType.AOV_TREND:
+        return this.aovTrend(range);
+      case SalesType.REPEAT_RATE:
+        return this.repeatPurchaseRate(range);
       default: {
-        const [byStatus, byPaymentMethod, byCategory, byBrand] =
+        const [byStatus, byPaymentMethod, byCategory, byBrand, byDayOfWeek, aovTrend, repeatRate] =
           await Promise.all([
             this.salesByStatus(range),
             this.salesByPaymentMethod(range),
             this.salesByCategory(range),
             this.salesByBrand(range),
+            this.salesByDayOfWeek(range),
+            this.aovTrend(range),
+            this.repeatPurchaseRate(range),
           ]);
-        return { byStatus, byPaymentMethod, byCategory, byBrand };
+        return { byStatus, byPaymentMethod, byCategory, byBrand, byDayOfWeek, aovTrend, repeatRate };
       }
     }
   }

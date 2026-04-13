@@ -16,6 +16,9 @@ export enum SalesType {
   PAYMENT_METHOD = 'payment-method',
   CATEGORY = 'category',
   BRAND = 'brand',
+  DAY_OF_WEEK = 'day-of-week',
+  AOV_TREND = 'aov-trend',
+  REPEAT_RATE = 'repeat-rate',
   ALL = 'all',
 }
 
@@ -41,7 +44,10 @@ export class SalesQueryDto extends RangeQueryDto {
       'payment-method = by gateway (PAID only), ' +
       'category = by product category, ' +
       'brand = by brand, ' +
-      'all = returns all four groups at once.',
+      'day-of-week = orders & revenue per weekday, ' +
+      'aov-trend = daily average order value time series, ' +
+      'repeat-rate = repeat purchase rate, ' +
+      'all = returns all groups at once.',
     default: SalesType.ALL,
   })
   @IsOptional()
