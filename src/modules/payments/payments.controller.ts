@@ -1,89 +1,109 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// payments.controller.ts
+//
+// Routes:
+//   POST   /payments/initiate                 — start a payment (authenticated)
+//   POST   /payments/callback/:gateway/success — gateway success / IPN callback
+//   POST   /payments/callback/:gateway/fail    — gateway failure callback
+//   GET    /payments                           — list all payments (ADMIN)
+//   GET    /payments/:id                       — single payment (ADMIN)
+// ─────────────────────────────────────────────────────────────────────────────
+
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
   Param,
-  Delete,
+  Post,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { PaymentsService } from './payments.service';
-import { CreatePaymentDto } from './dto/create-payment.dto';
-import { UpdatePaymentDto } from './dto/update-payment.dto';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBody,
+  ApiOperation,
   ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import type { Request } from 'express';
+import { JwtRefreshGuard } from 'src/common/guards/auth.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { PaymentsService } from './payments.service';
+import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 
 @ApiTags('Payments')
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
-  @Post()
+  // ── Customer endpoints ─────────────────────────────────────────────────────
+
+  @Post('initiate')
+  @UseGuards(JwtRefreshGuard)
   @ApiOperation({
-    summary: 'Create a payment record ',
+    summary: 'Initiate a payment for an order',
     description:
-      'Placeholder endpoint. Creates a payment record. (Intended to be invoked by the payment gateway callback / ADMIN once implemented.)',
+      'Returns a paymentUrl. The frontend redirects the customer to that URL.',
   })
-  @ApiBody({ type: CreatePaymentDto })
-  @ApiResponse({ status: 201, description: 'Payment record created' })
-  create(@Body() createPaymentDto: CreatePaymentDto) {
-    return this.paymentsService.create(createPaymentDto);
+  @ApiBody({ type: InitiatePaymentDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Returns { paymentUrl, transactionId }',
+  })
+  initiatePayment(
+    @Body() dto: InitiatePaymentDto,
+    @Req() req: Request,
+    @CurrentUser() _user: any,
+  ) {
+    const baseUrl = `${req.protocol}://${req.get('host')}/api/v1`;
+    return this.paymentsService.initiatePayment(dto, baseUrl);
   }
 
-  @Get()
+  // ── Gateway callbacks (no auth — called by payment gateways) ──────────────
+
+  @Post('callback/:gateway/success')
   @ApiOperation({
-    summary: 'List all payment records ',
-    description: 'Placeholder endpoint that lists payment records.',
+    summary: 'Gateway success / IPN callback',
+    description: 'Called by the payment gateway after a successful payment.',
   })
-  @ApiResponse({ status: 200, description: 'Payment list' })
-  findAll() {
-    return this.paymentsService.findAll();
+  @ApiParam({ name: 'gateway', example: 'sslcommerz' })
+  handleSuccess(
+    @Param('gateway') gateway: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.paymentsService.handleCallback(gateway, body);
+  }
+
+  @Post('callback/:gateway/fail')
+  @ApiOperation({ summary: 'Gateway failure callback' })
+  @ApiParam({ name: 'gateway', example: 'sslcommerz' })
+  handleFail(
+    @Param('gateway') gateway: string,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.paymentsService.handleCallback(gateway, body);
+  }
+
+  // ── Admin endpoints ────────────────────────────────────────────────────────
+
+  @Get()
+  @UseGuards(JwtRefreshGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'List all payment records (ADMIN)' })
+  findAll(@Query() query: { page?: number; limit?: number; status?: string }) {
+    return this.paymentsService.findAll(query);
   }
 
   @Get(':id')
-  @ApiOperation({
-    summary: 'Get a payment record by ID ',
-    description: 'Placeholder endpoint that returns a single payment record.',
-  })
-  @ApiParam({
-    name: 'id',
-    example: 1,
-    description: 'Payment record numeric id',
-  })
+  @UseGuards(JwtRefreshGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Get a payment record by ID (ADMIN)' })
+  @ApiParam({ name: 'id', description: 'Payment UUID' })
   findOne(@Param('id') id: string) {
-    return this.paymentsService.findOne(+id);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update a payment record ',
-    description: 'Placeholder endpoint that updates a payment record.',
-  })
-  @ApiParam({
-    name: 'id',
-    example: 1,
-    description: 'Payment record numeric id',
-  })
-  update(@Param('id') id: string, @Body() updatePaymentDto: UpdatePaymentDto) {
-    return this.paymentsService.update(+id, updatePaymentDto);
-  }
-
-  @Delete(':id')
-  @ApiOperation({
-    summary: 'Delete a payment record ',
-    description: 'Placeholder endpoint that deletes a payment record.',
-  })
-  @ApiParam({
-    name: 'id',
-    example: 1,
-    description: 'Payment record numeric id',
-  })
-  remove(@Param('id') id: string) {
-    return this.paymentsService.remove(+id);
+    return this.paymentsService.findOne(id);
   }
 }

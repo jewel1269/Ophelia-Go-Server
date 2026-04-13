@@ -3,15 +3,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { LogSource, LogType } from '@prisma/client';
 import { PrismaService } from 'src/common/database/prisma.service';
 import { CreateOrderDto, PaymentType } from './dto/create-order.dto';
 import { deleteCache, getCache, setCache } from 'src/services/cache.service';
 import { BuyNowDto } from './dto/buy-now-dto';
 import { generateOrderNumber } from 'src/utility/order-number-generator/order-number-generator';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activityLogs: ActivityLogsService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async createOrderFromCart(userId: string, dto: CreateOrderDto) {
     const { paymentType, addressId, shippingCost } = dto;
@@ -75,8 +82,24 @@ export class OrdersService {
       await this.createPaymentRecord(tx, order.id, totalAmount, paymentType);
 
       await this.decrementStock(tx, productId, variantId ?? null, quantity);
-
       await this.clearOrderCache(userId);
+
+      void this.activityLogs.log({
+        action: 'CREATE_ORDER',
+        message: `Buy-now order #${order.orderNumber} placed for ৳${totalAmount}`,
+        type: LogType.INFO,
+        source: LogSource.ORDER,
+        userId,
+        entityId: order.id,
+        metadata: { orderNumber: order.orderNumber, totalAmount, productId },
+      });
+      void this.notifications.notifyNewOrder({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        totalAmount,
+        userId,
+      });
+
       return { message: 'Direct order successful', order };
     });
   }
@@ -118,10 +141,25 @@ export class OrdersService {
       }
 
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-
       await this.clearOrderCache(userId);
 
-      console.log(order);
+      // Log + notify after transaction completes
+      void this.activityLogs.log({
+        action: 'CREATE_ORDER',
+        message: `New order #${order.orderNumber} placed for ৳${totalAmount}`,
+        type: LogType.INFO,
+        source: LogSource.ORDER,
+        userId,
+        entityId: order.id,
+        metadata: { orderNumber: order.orderNumber, totalAmount, paymentType: PaymentType.COD },
+      });
+      void this.notifications.notifyNewOrder({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        totalAmount,
+        userId,
+      });
+
       return order;
     });
   }
