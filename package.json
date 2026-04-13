@@ -5,6 +5,9 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "prisma": {
+    "seed": "ts-node -r tsconfig-paths/register prisma/seed.ts"
+  },
   "scripts": {
     "build": "nest build",
     "start": "node --max-old-space-size=1024 dist/main.js",

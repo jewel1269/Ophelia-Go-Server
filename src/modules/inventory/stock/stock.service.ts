@@ -414,4 +414,38 @@ export class StockService {
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
+
+  // ---------------------------------------------------------------------------
+  // Inventory aggregate stats
+  // ---------------------------------------------------------------------------
+
+  async getInventoryStats(params: { threshold: number }) {
+    const { threshold } = params;
+
+    const [totalProducts, lowStockCount, outOfStockCount, stockValueAgg] =
+      await Promise.all([
+        this.prisma.product.count({ where: { isArchived: false } }),
+        this.prisma.product.count({
+          where: { stock: { gt: 0, lte: threshold }, isArchived: false },
+        }),
+        this.prisma.product.count({ where: { stock: 0, isArchived: false } }),
+        this.prisma.product.findMany({
+          where: { isArchived: false },
+          select: { stock: true, price: true },
+        }),
+      ]);
+
+    const totalStockValue = stockValueAgg.reduce(
+      (sum, p) => sum + p.stock * Number(p.price),
+      0,
+    );
+
+    return {
+      totalProducts,
+      lowStockCount,
+      outOfStockCount,
+      totalStockValue,
+      threshold,
+    };
+  }
 }
