@@ -27,7 +27,9 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/mapped-types": "*",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.1.18",
     "@nestjs/swagger": "^11.2.3",
+    "@nestjs/websockets": "^11.1.18",
     "@prisma/client": "^6.19.1",
     "@types/buffer-to-stream": "^1.0.3",
     "bcrypt": "^6.0.0",
@@ -41,6 +43,7 @@
     "redis": "^5.10.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "socket.io": "^4.8.3",
     "some-library": "^1.0.0",
     "swagger-ui-express": "^5.0.1",
     "ua-parser-js": "^2.0.7"

@@ -36,7 +36,37 @@ enum PaymentMethod {
   BKASH
   NAGAD
   SSLCOMMERZ
+  AMARPAY
   STRIPE
+}
+
+enum GatewayEnvironment {
+  SANDBOX
+  LIVE
+}
+
+enum LogType {
+  INFO
+  WARNING
+  DANGEROUS
+}
+
+enum LogSource {
+  SYSTEM
+  API
+  AUTH
+  ORDER
+  PAYMENT
+  ADMIN
+  FIREWALL
+  EDR
+}
+
+enum AdminNotifType {
+  DANGEROUS
+  ORDER
+  SYSTEM
+  INFO
 }
 
 enum DiscountType {
@@ -457,14 +487,34 @@ model Notification {
   @@map("notifications")
 }
 
-model ActivityLog {
-  id        String   @id @default(uuid())
-  userId    String
-  action    String
-  entityId  String?
-  details   Json?
-  createdAt DateTime @default(now())
+model PaymentGatewayConfig {
+  id          String             @id @default(uuid())
+  name        String             @unique // e.g. "sslcommerz", "bkash", "amarpay"
+  displayName String
+  isActive    Boolean            @default(false)
+  credentials Json               @default("{}")
+  environment GatewayEnvironment @default(SANDBOX)
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_gateway_configs")
+}
+
+model ActivityLog {
+  id        String    @id @default(uuid())
+  userId    String?
+  action    String
+  message   String
+  type      LogType   @default(INFO)
+  source    LogSource @default(API)
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+
+  @@index([type, createdAt])
+  @@index([userId])
+  @@index([source])
   @@map("activity_logs")
 }
 
@@ -570,4 +620,15 @@ model StockMovement {
   @@index([variantId])
   @@index([type])
   @@map("stock_movements")
+model AdminNotification {
+  id        String         @id @default(uuid())
+  type      AdminNotifType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean        @default(false)
+  createdAt DateTime       @default(now())
+
+  @@index([isRead, createdAt])
+  @@map("admin_notifications")
 }

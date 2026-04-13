@@ -17,9 +17,16 @@ import { BannerModule } from './modules/banner/banner.module';
 import { ReviewModule } from './modules/review/review.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { CouponModule } from './modules/coupon/coupon.module';
+import { ActivityLogsModule } from './modules/activity-logs/activity-logs.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
+    // ── Core infrastructure (order matters: logs before everything else) ──
+    ActivityLogsModule,   // @Global — exports ActivityLogsService everywhere
+    NotificationsModule,  // Socket.IO gateway + admin notification service
+
+    // ── Feature modules ────────────────────────────────────────────────────
     AuthModule,
     UsersModule,
     ProductsModule,
