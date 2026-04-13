@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -19,8 +20,10 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ResponseInterceptor());
   app.useGlobalFilters(new GlobalExceptionFilter());
 
-  app.use(helmet());
+  // Socket.IO WebSocket adapter
+  app.useWebSocketAdapter(new IoAdapter(app));
 
+  app.use(helmet());
   app.use(cookieParser());
 
   app.enableCors({
@@ -63,6 +66,7 @@ async function bootstrap() {
 
   logger.log(`🚀 Application is running on: http://localhost:${PORT}/api/v1`);
   logger.log(`📄 Swagger Docs available at: http://localhost:${PORT}/docs`);
+  logger.log(`🔌 WebSocket gateway at: ws://localhost:${PORT}/notifications`);
 }
 
 bootstrap();

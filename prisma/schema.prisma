@@ -45,6 +45,30 @@ enum GatewayEnvironment {
   LIVE
 }
 
+enum LogType {
+  INFO
+  WARNING
+  DANGEROUS
+}
+
+enum LogSource {
+  SYSTEM
+  API
+  AUTH
+  ORDER
+  PAYMENT
+  ADMIN
+  FIREWALL
+  EDR
+}
+
+enum AdminNotifType {
+  DANGEROUS
+  ORDER
+  SYSTEM
+  INFO
+}
+
 enum DiscountType {
   PERCENTAGE
   FIXED_AMOUNT
@@ -456,12 +480,31 @@ model PaymentGatewayConfig {
 }
 
 model ActivityLog {
-  id        String   @id @default(uuid())
-  userId    String
+  id        String    @id @default(uuid())
+  userId    String?
   action    String
+  message   String
+  type      LogType   @default(INFO)
+  source    LogSource @default(API)
   entityId  String?
-  details   Json?
-  createdAt DateTime @default(now())
+  metadata  Json?
+  createdAt DateTime  @default(now())
 
+  @@index([type, createdAt])
+  @@index([userId])
+  @@index([source])
   @@map("activity_logs")
+}
+
+model AdminNotification {
+  id        String         @id @default(uuid())
+  type      AdminNotifType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean        @default(false)
+  createdAt DateTime       @default(now())
+
+  @@index([isRead, createdAt])
+  @@map("admin_notifications")
 }

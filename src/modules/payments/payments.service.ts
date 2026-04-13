@@ -13,11 +13,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { PaymentStatus, OrderStatus, PaymentMethod } from '@prisma/client';
+import { LogSource, LogType, OrderStatus, PaymentMethod, PaymentStatus } from '@prisma/client';
 import { PrismaService } from 'src/common/database/prisma.service';
 import { GatewayConfigService } from './config/gateway-config.service';
 import { PaymentRegistryService } from './gateways/payment-registry.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 @Injectable()
 export class PaymentsService {
@@ -27,6 +28,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly gatewayConfig: GatewayConfigService,
     private readonly registry: PaymentRegistryService,
+    private readonly activityLogs: ActivityLogsService,
   ) {}
 
   // ── Initiate ───────────────────────────────────────────────────────────────
@@ -94,13 +96,23 @@ export class PaymentsService {
         status: PaymentStatus.PENDING,
         amount: order.totalAmount,
         currency: 'BDT',
-        transactionId: orderId, // orderId used as tran_id across all gateways
+        transactionId: orderId,
         gatewayResponse: result.gatewayResponse ?? {},
       },
       update: {
         status: PaymentStatus.PENDING,
         gatewayResponse: result.gatewayResponse ?? {},
       },
+    });
+
+    void this.activityLogs.log({
+      action: 'PAYMENT_INITIATED',
+      message: `Payment initiated via ${method} for order ${orderId} — ৳${order.totalAmount}`,
+      type: LogType.INFO,
+      source: LogSource.PAYMENT,
+      userId: order.user.id,
+      entityId: orderId,
+      metadata: { method, amount: order.totalAmount },
     });
 
     return {
@@ -187,6 +199,23 @@ export class PaymentsService {
       await this.prisma.order.update({
         where: { id: transactionId },
         data: { status: OrderStatus.PROCESSING },
+      });
+      void this.activityLogs.log({
+        action: 'PAYMENT_SUCCESS',
+        message: `Payment confirmed via ${gatewayName} for order ${transactionId} — ৳${verification.amount}`,
+        type: LogType.INFO,
+        source: LogSource.PAYMENT,
+        entityId: transactionId,
+        metadata: { gateway: gatewayName, amount: verification.amount, valId: verification.gatewayValId },
+      });
+    } else {
+      void this.activityLogs.log({
+        action: 'PAYMENT_FAILED',
+        message: `Payment failed via ${gatewayName} for order ${transactionId}`,
+        type: LogType.WARNING,
+        source: LogSource.PAYMENT,
+        entityId: transactionId,
+        metadata: { gateway: gatewayName, error: verification.error },
       });
     }
 

@@ -9,10 +9,11 @@ import { PrismaService } from 'src/common/database/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { TokenService } from 'src/utility/generateTokens/generateTokens';
 import * as bcrypt from 'bcrypt';
-import { Prisma } from '@prisma/client';
+import { LogSource, LogType, Prisma } from '@prisma/client';
 import { CreateAddressDto } from './dto/user-address.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CloudinaryService } from 'src/storage/cloudinary/cloudinary.service';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 @Injectable()
 export class UsersService {
@@ -21,6 +22,7 @@ export class UsersService {
     private readonly jwtService: JwtService,
     private readonly tokenService: TokenService,
     private cloudinaryService: CloudinaryService,
+    private readonly activityLogs: ActivityLogsService,
   ) {}
 
   async create(registerData: CreateUserDto) {
@@ -60,6 +62,15 @@ export class UsersService {
       data: { hashedRefreshToken },
     });
 
+    void this.activityLogs.log({
+      action: 'USER_REGISTER',
+      message: `New user registered: ${user.email}`,
+      type: LogType.INFO,
+      source: LogSource.AUTH,
+      userId: user.id,
+      metadata: { email: user.email, role: user.role },
+    });
+
     return {
       user: {
         id: user.id,
@@ -80,10 +91,25 @@ export class UsersService {
       where: { email },
     });
     if (!user) {
+      void this.activityLogs.log({
+        action: 'FAILED_LOGIN',
+        message: `Failed login attempt for unknown email: ${email}`,
+        type: LogType.DANGEROUS,
+        source: LogSource.AUTH,
+        metadata: { email },
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
+      void this.activityLogs.log({
+        action: 'FAILED_LOGIN',
+        message: `Failed login attempt for ${email} — wrong password`,
+        type: LogType.DANGEROUS,
+        source: LogSource.AUTH,
+        userId: user.id,
+        metadata: { email },
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
     const accessToken = this.tokenService.generateAccessToken({
@@ -109,6 +135,15 @@ export class UsersService {
       },
     });
 
+    void this.activityLogs.log({
+      action: 'USER_LOGIN',
+      message: `User logged in: ${user.email}`,
+      type: LogType.INFO,
+      source: LogSource.AUTH,
+      userId: user.id,
+      metadata: { email: user.email, role: user.role },
+    });
+
     return {
       user: {
         id: user.id,
@@ -124,11 +159,19 @@ export class UsersService {
   }
 
   async logout(userId: string) {
-    console.log(userId);
     await this.prisma.user.update({
       where: { id: userId },
       data: { hashedRefreshToken: null },
     });
+
+    void this.activityLogs.log({
+      action: 'USER_LOGOUT',
+      message: `User logged out`,
+      type: LogType.INFO,
+      source: LogSource.AUTH,
+      userId,
+    });
+
     return { message: 'Logout successful' };
   }
 
