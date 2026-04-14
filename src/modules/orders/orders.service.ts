@@ -11,6 +11,7 @@ import { BuyNowDto } from './dto/buy-now-dto';
 import { generateOrderNumber } from 'src/utility/order-number-generator/order-number-generator';
 import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CouponService } from '../coupon/coupon.service';
 
 @Injectable()
 export class OrdersService {
@@ -18,10 +19,11 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly activityLogs: ActivityLogsService,
     private readonly notifications: NotificationsService,
+    private readonly couponService: CouponService,
   ) {}
 
   async createOrderFromCart(userId: string, dto: CreateOrderDto) {
-    const { paymentType, addressId, shippingCost } = dto;
+    const { paymentType, addressId, shippingCost, couponCode } = dto;
 
     const cart = await this.prisma.cart.findUnique({
       where: { userId },
@@ -31,13 +33,14 @@ export class OrdersService {
     if (!cart || cart.items.length === 0)
       throw new BadRequestException('Cart is empty');
     if (paymentType === PaymentType.COD) {
-      return this.processCartCOD(userId, cart, addressId, Number(shippingCost));
+      return this.processCartCOD(userId, cart, addressId, Number(shippingCost), couponCode);
     } else {
       return this.processCartOnline(
         userId,
         cart,
         addressId,
         Number(shippingCost),
+        couponCode,
       );
     }
   }
@@ -109,10 +112,22 @@ export class OrdersService {
     cart: any,
     addressId: string,
     shippingCost: number = 0,
+    couponCode?: string,
   ) {
+    // Validate coupon before entering transaction (avoids long-running tx)
+    let couponId: string | undefined;
+    let discountAmount = 0;
+    if (couponCode) {
+      const { orderItems: preItems, subTotal: preSub } = this.validateCartAndCalculate(cart);
+      const preTotal = preSub + shippingCost;
+      const result = await this.couponService.validateCoupon(couponCode, userId, preTotal);
+      couponId = result.coupon.id;
+      discountAmount = result.discountAmount;
+    }
+
     return await this.prisma.$transaction(async (tx) => {
       const { orderItems, subTotal } = this.validateCartAndCalculate(cart);
-      const totalAmount = subTotal + shippingCost;
+      const totalAmount = Math.max(0, subTotal + shippingCost - discountAmount);
       const orderNumber = generateOrderNumber();
 
       const order = await this.createOrderRecord(tx, {
@@ -120,8 +135,10 @@ export class OrdersService {
         orderNumber,
         subTotal,
         shippingCost,
+        discountAmount,
         totalAmount,
         addressId,
+        couponId,
         items: orderItems,
       });
 
@@ -140,6 +157,9 @@ export class OrdersService {
         );
       }
 
+      if (couponId) {
+        await tx.coupon.update({ where: { id: couponId }, data: { usedCount: { increment: 1 } } });
+      }
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
       await this.clearOrderCache(userId);
 
@@ -164,20 +184,83 @@ export class OrdersService {
     });
   }
 
-  private processCartOnline(
+  private async processCartOnline(
     userId: string,
     cart: any,
     addressId: string,
     shippingCost: number = 0,
+    couponCode?: string,
   ) {
-    const { subTotal } = this.validateCartAndCalculate(cart);
-    const totalAmount = subTotal + shippingCost;
-    const orderNumber = generateOrderNumber();
-    return {
-      message: 'Redirecting to payment gateway...',
-      paymentUrl: `https://sslcommerz.com/pay/${orderNumber}`,
-      orderInfo: { orderNumber, totalAmount },
-    };
+    // Validate coupon before entering transaction
+    let couponId: string | undefined;
+    let discountAmount = 0;
+    if (couponCode) {
+      const { orderItems: preItems, subTotal: preSub } = this.validateCartAndCalculate(cart);
+      const preTotal = preSub + shippingCost;
+      const result = await this.couponService.validateCoupon(couponCode, userId, preTotal);
+      couponId = result.coupon.id;
+      discountAmount = result.discountAmount;
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      const { orderItems, subTotal } = this.validateCartAndCalculate(cart);
+      const totalAmount = Math.max(0, subTotal + shippingCost - discountAmount);
+      const orderNumber = generateOrderNumber();
+
+      const order = await this.createOrderRecord(tx, {
+        userId,
+        orderNumber,
+        subTotal,
+        shippingCost,
+        discountAmount,
+        totalAmount,
+        addressId,
+        couponId,
+        items: orderItems,
+      });
+
+      // Payment record is NOT created here — payments.service.ts upserts it
+      // with the correct PaymentMethod when initiatePayment() is called.
+
+      // Stock is decremented optimistically; will be restored if payment fails
+      for (const item of orderItems) {
+        await this.decrementStock(
+          tx,
+          item.productId,
+          item.variantId,
+          item.quantity,
+        );
+      }
+
+      if (couponId) {
+        await tx.coupon.update({ where: { id: couponId }, data: { usedCount: { increment: 1 } } });
+      }
+      // Clear cart items — frontend also clears state after paymentUrl redirect
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      await this.clearOrderCache(userId);
+
+      void this.activityLogs.log({
+        action: 'CREATE_ORDER',
+        message: `Online order #${order.orderNumber} initiated for ৳${totalAmount}`,
+        type: LogType.INFO,
+        source: LogSource.ORDER,
+        userId,
+        entityId: order.id,
+        metadata: {
+          orderNumber: order.orderNumber,
+          totalAmount,
+          paymentType: PaymentType.ONLINE,
+        },
+      });
+      void this.notifications.notifyNewOrder({
+        id: order.id,
+        orderNumber: order.orderNumber,
+        totalAmount,
+        userId,
+      });
+
+      return order;
+    });
   }
 
   private validateCartAndCalculate(cart: any) {
@@ -221,6 +304,11 @@ export class OrdersService {
         data: { stock: { decrement: qty } },
       });
     }
+    // Always increment parent product orderCount regardless of variant
+    await tx.product.update({
+      where: { id: pId },
+      data: { orderCount: { increment: qty } },
+    });
   }
 
   private async createOrderRecord(tx: any, data: any) {
@@ -235,9 +323,11 @@ export class OrdersService {
         orderNumber: data.orderNumber,
         subTotal: data.subTotal,
         shippingCost: data.shippingCost,
+        discountAmount: data.discountAmount ?? 0,
         totalAmount: data.totalAmount,
         shippingAddress: address as any,
         status: 'PENDING',
+        ...(data.couponId ? { couponId: data.couponId } : {}),
         orderItems: {
           create: data.items.map((i) => ({
             ...i,

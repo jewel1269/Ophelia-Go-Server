@@ -45,6 +45,12 @@ export class CouponController {
     return this.couponService.getStats();
   }
 
+  // Public - checkout page এ available offers দেখানোর জন্য
+  @Get('public/active')
+  getPublicCoupons() {
+    return this.couponService.getPublicCoupons();
+  }
+
   // Public - checkout page থেকে call হবে
   @Get('validate/:code')
   validateCoupon(

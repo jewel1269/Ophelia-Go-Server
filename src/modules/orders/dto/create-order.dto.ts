@@ -116,4 +116,9 @@ export class CreateOrderDto {
   @IsUUID()
   @IsNotEmpty()
   addressId: string;
+
+  @ApiPropertyOptional({ description: 'Coupon code to apply', example: 'SAVE10' })
+  @IsString()
+  @IsOptional()
+  couponCode?: string;
 }

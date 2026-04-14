@@ -13,6 +13,26 @@ import { deleteCache, getCache, setCache } from 'src/services/cache.service';
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Batch-fetch real review stats for a list of product IDs */
+  private async getReviewStats(productIds: string[]) {
+    if (!productIds.length) return new Map<string, { rating: number; averageRating: number }>();
+    const stats = await this.prisma.review.groupBy({
+      by: ['productId'],
+      where: { productId: { in: productIds } },
+      _avg: { rating: true },
+      _count: { id: true },
+    });
+    return new Map(
+      stats.map((s) => [
+        s.productId,
+        {
+          rating: s._count.id,
+          averageRating: Math.round((s._avg.rating ?? 0) * 10) / 10,
+        },
+      ]),
+    );
+  }
+
   async create(createProductDto: CreateProductDto) {
     const { variants, ...productData } = createProductDto;
     try {
@@ -172,15 +192,19 @@ export class ProductsService {
       }),
       this.prisma.product.count({ where: whereFilter }),
     ]);
+    const reviewStats = await this.getReviewStats(products.map((p) => p.id));
     const formattedProducts = products.map((product) => {
       const discount = product.discountPrice
         ? Math.round(
             ((product.price - product.discountPrice) / product.price) * 100,
           )
         : 0;
+      const stats = reviewStats.get(product.id);
       return {
         ...product,
         discountPercentage: discount,
+        rating: stats?.rating ?? product.rating ?? 0,
+        averageRating: stats?.averageRating ?? product.averageRating ?? 0,
       };
     });
     const data = formattedProducts;
@@ -433,6 +457,7 @@ export class ProductsService {
     ]);
 
     // 7. Data Formatting
+    const reviewStats = await this.getReviewStats(products.map((p) => p.id));
     const formattedData = products.map((product) => {
       const price = product.price || 0;
       const discountPrice = product.discountPrice || 0;
@@ -440,14 +465,14 @@ export class ProductsService {
         discountPrice > 0 && price > discountPrice
           ? Math.round(((price - discountPrice) / price) * 100)
           : 0;
-
+      const stats = reviewStats.get(product.id);
       return {
         ...product,
         price,
         discountPrice,
         discountPercentage,
-        rating: product.rating || 0,
-        averageRating: product.averageRating || 0,
+        rating: stats?.rating ?? product.rating ?? 0,
+        averageRating: stats?.averageRating ?? product.averageRating ?? 0,
       };
     });
 

@@ -10,5 +10,6 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
   imports: [PrismaModule, AuthModule],
   controllers: [CouponController],
   providers: [CouponService, JwtRefreshGuard, RolesGuard],
+  exports: [CouponService],
 })
 export class CouponModule {}

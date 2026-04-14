@@ -97,6 +97,17 @@ enum StockMovementType {
   TRANSFER     // moved between warehouse locations
 }
 
+enum CampaignType {
+  SINGLE
+  BULK
+}
+
+enum CampaignStatus {
+  SENT
+  FAILED
+  PARTIAL
+}
+
 enum PurchaseOrderStatus {
   DRAFT
   ORDERED
@@ -632,4 +643,21 @@ model AdminNotification {
 
   @@index([isRead, createdAt])
   @@map("admin_notifications")
+}
+
+model EmailCampaign {
+  id             String         @id @default(uuid())
+  type           CampaignType
+  subject        String
+  content        String         @db.Text
+  audience       String         // audience key or single recipient email
+  audienceLabel  String         // human-readable label e.g. "All Customers"
+  sentCount      Int            @default(0)
+  failedCount    Int            @default(0)
+  status         CampaignStatus @default(SENT)
+  sentAt         DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+
+  @@index([createdAt])
+  @@map("email_campaigns")
 }

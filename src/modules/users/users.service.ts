@@ -374,21 +374,33 @@ export class UsersService {
   }
 
   async updatePassword(userId: string, body: any) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-    console.log(user);
-    if (!user) {
-      throw new NotFoundException('User not found');
+    const { oldPassword, newPassword } = body;
+
+    if (!oldPassword || !newPassword) {
+      throw new BadRequestException('oldPassword and newPassword are required');
     }
-    const passwordMatch = await bcrypt.compare(body.oldPassword, user.password);
+    if (newPassword.length < 6) {
+      throw new BadRequestException('New password must be at least 6 characters');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const passwordMatch = await bcrypt.compare(oldPassword, user.password);
     if (!passwordMatch) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Current password is incorrect');
     }
-    const updatedPassword = await this.prisma.user.update({
+
+    if (oldPassword === newPassword) {
+      throw new BadRequestException('New password must be different from the current password');
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
       where: { id: userId },
-      data: { password: body.newPassword },
+      data: { password: hashed },
     });
-    return updatedPassword;
+
+    return { message: 'Password updated successfully' };
   }
 }

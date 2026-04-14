@@ -2,8 +2,8 @@ import {
   IsEmail,
   IsNotEmpty,
   IsOptional,
-  IsPhoneNumber,
   IsString,
+  Matches,
   MinLength,
   IsEnum,
 } from 'class-validator';
@@ -41,7 +41,9 @@ export class CreateUserDto {
     example: '+8801712345678',
   })
   @IsOptional()
-  @IsPhoneNumber()
+  @Matches(/^(\+?88)?01[3-9]\d{8}$/, {
+    message: 'phone must be a valid Bangladeshi number (e.g. 01712345678 or +8801712345678)',
+  })
   phone?: string;
 
   @ApiPropertyOptional({
@@ -82,7 +84,9 @@ export class UpdateUserDtoV2 {
     example: '+8801712345678',
   })
   @IsOptional()
-  @IsPhoneNumber()
+  @Matches(/^(\+?88)?01[3-9]\d{8}$/, {
+    message: 'phone must be a valid Bangladeshi number (e.g. 01712345678 or +8801712345678)',
+  })
   phone?: string;
 
   @ApiPropertyOptional({

@@ -1,69 +1,57 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Post, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
-import { ApiTags, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBody, ApiResponse } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
-@ApiTags('Auth')
+class ForgotPasswordDto {
+  @IsEmail() email: string;
+}
+class VerifyOtpDto {
+  @IsEmail() email: string;
+  @IsString() @IsNotEmpty() otp: string;
+}
+class ResetPasswordDto {
+  @IsEmail() email: string;
+  @IsString() @IsNotEmpty() otp: string;
+  @IsString() @MinLength(6) newPassword: string;
+}
+
+@ApiTags('Auth — Password Reset')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post()
-  @ApiOperation({
-    summary: 'Create an auth record ',
-    description:
-      'Placeholder endpoint. Auth flows (register/login/logout) are implemented in the Users module.',
-  })
-  @ApiResponse({ status: 201, description: 'Auth record created' })
-  create(@Body() createAuthDto: CreateAuthDto) {
-    return this.authService.create(createAuthDto);
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Step 1 — Send OTP to email' })
+  @ApiBody({ schema: { properties: { email: { type: 'string' } } } })
+  @ApiResponse({ status: 201, description: 'OTP sent' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
   }
 
-  @Get()
-  @ApiOperation({
-    summary: 'List auth records ',
-    description: 'Placeholder endpoint that lists auth records.',
-  })
-  findAll() {
-    return this.authService.findAll();
+  @Post('verify-otp')
+  @ApiOperation({ summary: 'Step 2 — Verify the 6-digit OTP' })
+  @ApiBody({ schema: { properties: { email: { type: 'string' }, otp: { type: 'string' } } } })
+  @ApiResponse({ status: 201, description: 'OTP verified' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
+  verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto.email, dto.otp);
   }
 
-  @Get(':id')
-  @ApiOperation({
-    summary: 'Get a single auth record ',
-    description: 'Placeholder endpoint that returns a single auth record.',
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Step 3 — Set new password' })
+  @ApiBody({
+    schema: {
+      properties: {
+        email: { type: 'string' },
+        otp: { type: 'string' },
+        newPassword: { type: 'string' },
+      },
+    },
   })
-  @ApiParam({ name: 'id', example: 1, description: 'Auth record numeric id' })
-  findOne(@Param('id') id: string) {
-    return this.authService.findOne(+id);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update an auth record ',
-    description: 'Placeholder endpoint that updates an auth record.',
-  })
-  @ApiParam({ name: 'id', example: 1, description: 'Auth record numeric id' })
-  update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.authService.update(+id, updateAuthDto);
-  }
-
-  @Delete(':id')
-  @ApiOperation({
-    summary: 'Delete an auth record ',
-    description: 'Placeholder endpoint that deletes an auth record.',
-  })
-  @ApiParam({ name: 'id', example: 1, description: 'Auth record numeric id' })
-  remove(@Param('id') id: string) {
-    return this.authService.remove(+id);
+  @ApiResponse({ status: 201, description: 'Password reset' })
+  @ApiResponse({ status: 400, description: 'Invalid session or weak password' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.email, dto.otp, dto.newPassword);
   }
 }
