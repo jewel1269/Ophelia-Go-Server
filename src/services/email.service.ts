@@ -1,4 +1,8 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 
 const LOGO_URL = 'https://i.postimg.cc/Yq6vn9Vt/Asset-6startxpress.png';
@@ -6,7 +10,7 @@ const LOGO_URL = 'https://i.postimg.cc/Yq6vn9Vt/Asset-6startxpress.png';
 function baseTemplate({
   previewText,
   headerBg = '#0B1F3A',
-  accentColor = '#1565C0',
+  accentColor = '#db175f',
   body,
   year,
   footerLine = 'You received this email because you are a registered customer on our platform.',
@@ -42,7 +46,7 @@ function baseTemplate({
           <!-- ── HEADER ── -->
           <tr>
             <td style="background-color:${headerBg};border-radius:8px 8px 0 0;padding:28px 40px;text-align:center;">
-              <img src="${LOGO_URL}" alt="Startxpress" width="160" height="auto"
+              <img src="${LOGO_URL}" alt="Ophelia Go" width="160" height="auto"
                    style="display:inline-block;border:0;max-width:160px;height:auto;"/>
             </td>
           </tr>
@@ -66,7 +70,7 @@ function baseTemplate({
                 ${footerLine}
               </p>
               <p style="margin:0;color:#9AA3B2;font-size:11px;">
-                &copy; ${year} Startxpress. All rights reserved.
+                &copy; ${year} Ophelia Go. All rights reserved.
               </p>
             </td>
           </tr>
@@ -122,8 +126,8 @@ export class EmailService {
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;">
         <tr>
           <td style="text-align:center;">
-            <a href="https://startxpress.com"
-               style="display:inline-block;background-color:#1565C0;color:#ffffff;text-decoration:none;font-size:13px;font-weight:700;letter-spacing:0.5px;padding:13px 36px;border-radius:5px;font-family:'Segoe UI',Roboto,Arial,sans-serif;text-transform:uppercase;">
+            <a href="https://opheliago.com"
+               style="display:inline-block;background-color:#db175f;color:#ffffff;text-decoration:none;font-size:13px;font-weight:700;letter-spacing:0.5px;padding:13px 36px;border-radius:5px;font-family:'Segoe UI',Roboto,Arial,sans-serif;text-transform:uppercase;">
               Visit Our Store &rarr;
             </a>
           </td>
@@ -139,7 +143,7 @@ export class EmailService {
     });
 
     await this.transporter.sendMail({
-      from: `"Startxpress" <${process.env.SMTP_USER}>`,
+      from: `"Ophelia Go" <${process.env.SMTP_USER}>`,
       to,
       subject,
       html,
@@ -219,7 +223,7 @@ export class EmailService {
       <!-- Security notice -->
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td style="border-left:3px solid #1565C0;padding:12px 16px;background-color:#F4F7FB;border-radius:0 6px 6px 0;">
+          <td style="border-left:3px solid #db175f;padding:12px 16px;background-color:#F4F7FB;border-radius:0 6px 6px 0;">
             <p style="margin:0;font-size:13px;color:#3D4F6B;line-height:1.6;">
               <strong style="color:#0B1F3A;">Did not request this?</strong>&nbsp;
               If you did not initiate this request, please disregard this email. Your account remains secure and no changes have been made.
@@ -232,14 +236,15 @@ export class EmailService {
       previewText: `Your verification code is ${otp}`,
       body,
       year,
-      footerLine: 'This is a system-generated email. Please do not reply to this message.',
+      footerLine:
+        'This is a system-generated email. Please do not reply to this message.',
     });
 
     try {
       await this.transporter.sendMail({
-        from: `"Startxpress" <${process.env.SMTP_USER}>`,
+        from: `"Ophelia Go" <${process.env.SMTP_USER}>`,
         to,
-        subject: `[${otp}] Your Startxpress Verification Code`,
+        subject: `[${otp}] Your Ophelia Go Verification Code`,
         html,
       });
       this.logger.log(`OTP email sent to ${to}`);
