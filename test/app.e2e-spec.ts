@@ -1,25 +1,27 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
+import { createTestApp } from './helpers/create-app';
+import { PrismaMock } from './helpers/prisma-mock';
 
-describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+describe('App bootstrap (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaMock;
 
-  beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleFixture.createNestApplication();
-    await app.init();
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('GET /api/v1/categories returns 200 — app bootstraps correctly', async () => {
+    prisma.category.findMany.mockResolvedValue([]);
+
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/categories')
+      .expect(200);
+
+    expect(res.body.statusCode).toBe(200);
   });
 });
