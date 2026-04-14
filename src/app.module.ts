@@ -19,6 +19,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { CouponModule } from './modules/coupon/coupon.module';
 import { ActivityLogsModule } from './modules/activity-logs/activity-logs.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { EmailCampaignModule } from './modules/email-campaign/email-campaign.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ReviewModule,
     DashboardModule,
     CouponModule,
+    EmailCampaignModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -7,19 +7,37 @@ import { PrismaService } from 'src/common/database/prisma.service';
 export class ReviewService {
   constructor(private prisma: PrismaService) {}
 
+  /** Recalculate and persist rating count + average on the parent product */
+  private async syncProductRating(productId: string) {
+    const agg = await this.prisma.review.aggregate({
+      where: { productId },
+      _avg: { rating: true },
+      _count: { id: true },
+    });
+    await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        rating: agg._count.id,
+        averageRating: Math.round((agg._avg.rating ?? 0) * 10) / 10,
+      },
+    });
+  }
+
   async create(
     userId: string,
     productId: string,
     createReviewDto: CreateReviewDto,
   ) {
     try {
-      return await this.prisma.review.create({
+      const review = await this.prisma.review.create({
         data: {
           ...createReviewDto,
           product: { connect: { id: productId } },
           user: { connect: { id: userId } },
         },
       });
+      await this.syncProductRating(productId);
+      return review;
     } catch (error) {
       throw new InternalServerErrorException(error.message);
     }
@@ -73,10 +91,12 @@ export class ReviewService {
 
   async update(id: string, updateReviewDto: UpdateReviewDto) {
     try {
-      return await this.prisma.review.update({
+      const review = await this.prisma.review.update({
         where: { id },
         data: updateReviewDto,
       });
+      await this.syncProductRating(review.productId);
+      return review;
     } catch (error) {
       throw new InternalServerErrorException(error.message);
     }
@@ -84,9 +104,9 @@ export class ReviewService {
 
   async remove(id: string) {
     try {
-      await this.prisma.review.delete({
-        where: { id },
-      });
+      const review = await this.prisma.review.findUnique({ where: { id } });
+      await this.prisma.review.delete({ where: { id } });
+      if (review) await this.syncProductRating(review.productId);
       return { message: 'Review deleted successfully' };
     } catch (error) {
       throw new InternalServerErrorException(error.message);

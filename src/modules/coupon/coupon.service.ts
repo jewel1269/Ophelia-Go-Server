@@ -83,6 +83,31 @@ export class CouponService {
     };
   }
 
+  async getPublicCoupons() {
+    const now = new Date();
+    return this.prisma.coupon.findMany({
+      where: {
+        isPrivate: false,
+        isActive: true,
+        startDate: { lte: now },
+        endDate: { gte: now },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        code: true,
+        type: true,
+        value: true,
+        minOrderVal: true,
+        maxDiscount: true,
+        endDate: true,
+        startDate: true,
+        usageLimit: true,
+        usedCount: true,
+      },
+    });
+  }
+
   async findOne(id: string) {
     const coupon = await this.prisma.coupon.findUnique({
       where: { id },
